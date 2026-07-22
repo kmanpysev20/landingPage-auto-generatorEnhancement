@@ -31,6 +31,7 @@
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 240'%3E%3Crect width='320' height='240' fill='%23f2f2ef'/%3E%3Crect x='105' y='65' width='110' height='110' rx='12' fill='%23d8d8d3'/%3E%3Ccircle cx='137' cy='101' r='14' fill='%23f2f2ef'/%3E%3Cpath d='M115 158l35-38 24 25 16-17 25 30z' fill='%23f2f2ef'/%3E%3C/svg%3E";
   let RESPONSIVE_BASE_WIDTH = 360;
   let WORKSPACE_PAGE_SIZE = 3;
+  let DEFAULT_WORKSPACE_SETUP_VERSION = 1;
   let translationController = null;
   let workspaceCarouselPage = 0;
   let uidSeq = 1;
@@ -193,6 +194,7 @@
     selectedElements: [],
     deviceWidth: 365,
     zoom: 100,
+    workspaceSetupVersion: DEFAULT_WORKSPACE_SETUP_VERSION,
     history: [],
     future: [],
   };
@@ -511,6 +513,7 @@
       selectedElements: state.selectedElements,
       deviceWidth: state.deviceWidth,
       zoom: state.zoom,
+      workspaceSetupVersion: state.workspaceSetupVersion,
     });
   }
   function pushHistory() {
@@ -532,6 +535,8 @@
       s.deviceWidth || 365,
     );
     state.zoom = s.zoom || 100;
+    state.workspaceSetupVersion =
+      Number(s.workspaceSetupVersion) || DEFAULT_WORKSPACE_SETUP_VERSION;
     migrateSectionStructures();
     ensureMinimumEditorElements();
     if (
@@ -589,6 +594,30 @@
     }
     if (!saved) return;
     try {
+      let savedState = JSON.parse(saved),
+        savedTemplates = savedState && savedState.templates,
+        savedKeys = savedTemplates ? Object.keys(savedTemplates) : [],
+        isLegacyDefaultSet =
+          Number(savedState.workspaceSetupVersion || 0) <
+            DEFAULT_WORKSPACE_SETUP_VERSION &&
+          savedKeys.length === 3 &&
+          ["beauty", "pharma", "fashion"].every(function (key) {
+            return !!savedTemplates[key];
+          });
+      if (isLegacyDefaultSet) {
+        savedTemplates.beauty.name = "MOI";
+        savedTemplates.beauty.short = "MOI";
+        savedTemplates.beauty.workspaceNameEditableVersion = 1;
+        savedTemplates.pharma = clone(templates.pharma);
+        delete savedTemplates.fashion;
+        savedState.activeTemplate = "beauty";
+        savedState.selectedSectionId = savedTemplates.beauty.sections[0].id;
+        savedState.selectedElementKey = null;
+        savedState.selectedElements = [];
+        savedState.workspaceSetupVersion = DEFAULT_WORKSPACE_SETUP_VERSION;
+        saved = JSON.stringify(savedState);
+        localStorage.setItem("landingBuilderV2", saved);
+      }
       restore(saved);
     } catch (e) {
       console.warn(e);

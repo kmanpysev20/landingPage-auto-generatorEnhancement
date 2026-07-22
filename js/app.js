@@ -14,6 +14,9 @@
       mutateWithHistory: mutateWithHistory,
     });
     bindEvents();
+    $(window).on("resize.deviceFrame", function () {
+      requestAnimationFrame(fitDeviceFrameHeight);
+    });
     renderSectionTypes();
     renderAll();
     loadLocal();
@@ -131,11 +134,12 @@
   let templates = {
     beauty: {
       id: "beauty",
-      name: "작업1",
-      short: "작업1",
+      name: "MOI",
+      short: "MOI",
       dot: "#ef65ad",
       thumb: ASSET + "beauty-thumb.jpg",
       sectionStructureVersion: 2,
+      workspaceNameEditableVersion: 1,
       style: {
         main: "#ff7598",
         sub: "#ffe7ed",
@@ -162,66 +166,21 @@
       id: "pharma",
       name: "작업2",
       short: "작업2",
-      dot: "#3f8ee8",
-      thumb: ASSET + "pharma-thumb.jpg",
+      dot: "#ef65ad",
+      thumb: "",
       sectionStructureVersion: 2,
+      workspaceNameEditableVersion: 1,
       style: {
-        main: "#0e3b77",
-        sub: "#edf4fc",
+        main: "#6841e8",
+        sub: DEFAULT_SECTION_BACKGROUND,
         font: DEFAULT_FONT,
-        radius: 5,
-        overlay: 12,
+        radius: 8,
+        overlay: 0,
       },
       sections: [
-        $.extend(true, { id: uid("p") }, sectionPresets.hero, {
-          eyebrow: "OFFICIAL",
-          title: "GENUINE PRODUCT",
-          subtitle: "공식 인증 제품을 확인하세요.",
-          image: ASSET + "pharma-top.jpg",
-        }),
-        $.extend(true, { id: uid("p") }, sectionPresets.section, {
-          eyebrow: "CERTIFICATION",
-          title: "정품 인증 완료",
-          subtitle: "공식적으로 생산 및 유통하는 제품입니다.",
-          image: ASSET + "pharma-bottom.jpg",
-        }),
-        $.extend(true, { id: uid("p") }, sectionPresets.footer, {
-          title: "DONGKOOK PHARMACEUTICAL",
-        }),
-      ],
-    },
-    fashion: {
-      id: "fashion",
-      name: "작업3",
-      short: "작업3",
-      dot: "#b8bbc2",
-      thumb: ASSET + "fashion-thumb.jpg",
-      sectionStructureVersion: 2,
-      fontDefaultVersion: 1,
-      style: {
-        main: "#222222",
-        sub: "#f2f2ef",
-        font: DEFAULT_FONT,
-        radius: 0,
-        overlay: 5,
-      },
-      sections: [
-        $.extend(true, { id: uid("f") }, sectionPresets.hero, {
-          eyebrow: "TANNAT",
-          title: "NEW ARRIVAL",
-          subtitle: "새로운 계절, 새로운 스타일",
-          buttonText: "SHOP NOW",
-          image: ASSET + "fashion-top.jpg",
-        }),
-        $.extend(true, { id: uid("f") }, sectionPresets.section, {
-          eyebrow: "COLLECTION",
-          title: "이번 주 신상품",
-          subtitle: "매일 입기 좋은 감각적인 아이템",
-          image: ASSET + "fashion-bottom.jpg",
-        }),
-        $.extend(true, { id: uid("f") }, sectionPresets.footer, {
-          title: "TANNAT OFFICIAL SHOP",
-        }),
+        createEmptySection("hero"),
+        createEmptySection("section"),
+        createEmptySection("footer"),
       ],
     },
   };
@@ -1688,6 +1647,22 @@
       );
     return "";
   }
+  function fitDeviceFrameHeight() {
+    let stage = $(".canvas-stage")[0],
+      frame = $("#deviceFrame")[0],
+      page = $("#deviceScreen .lp-page")[0];
+    if (!stage || !frame || !page) return;
+    let stageStyle = window.getComputedStyle(stage),
+      verticalPadding =
+        (parseFloat(stageStyle.paddingTop) || 0) +
+        (parseFloat(stageStyle.paddingBottom) || 0),
+      availableHeight = Math.max(0, stage.clientHeight - verticalPadding),
+      contentHeight = Math.max(1, Math.ceil(page.scrollHeight)),
+      frameHeight = availableHeight
+        ? Math.min(contentHeight, availableHeight)
+        : contentHeight;
+    frame.style.height = Math.max(1, frameHeight) + "px";
+  }
   function renderPage() {
     let t = currentTemplate(),
       html = '<div class="lp-page" style="' + pageStyle(t) + '">';
@@ -1696,14 +1671,17 @@
     });
     html += "</div>";
     $("#deviceScreen").html(html);
+    fitDeviceFrameHeight();
     keepRenderedElementsInsideSections();
     renderResizeHandle();
     $("#deviceScreen img").one("load", function () {
       requestAnimationFrame(function () {
+        fitDeviceFrameHeight();
         if (keepRenderedElementsInsideSections()) renderResizeHandle();
       });
     });
     requestAnimationFrame(function () {
+      fitDeviceFrameHeight();
       if (keepRenderedElementsInsideSections()) renderResizeHandle();
     });
   }
@@ -2553,6 +2531,7 @@
     $("#deviceWidthUpBtn").prop("disabled", state.deviceWidth >= 1024);
     renderSelectionStyle();
     requestAnimationFrame(function () {
+      fitDeviceFrameHeight();
       keepRenderedElementsInsideSections();
       renderResizeHandle();
     });
@@ -3142,7 +3121,7 @@
     css +=
       ".lp-eyebrow{font-size:calc(14px * var(--responsive-scale,1))}.lp-title{font-size:calc(32px * var(--responsive-scale,1))}.lp-subtitle{font-size:calc(14px * var(--responsive-scale,1))}.lp-button-slot{position:relative;display:inline-flex;align-items:center;justify-content:center;width:calc(205px * var(--responsive-scale,1));height:calc(42px * var(--responsive-scale,1));flex:0 0 auto;overflow:visible}.lp-button{gap:calc(8px * var(--responsive-scale,1));min-width:calc(205px * var(--responsive-scale,1));min-height:calc(42px * var(--responsive-scale,1));font-size:calc(13px * var(--responsive-scale,1))}.lp-button-image{width:calc(22px * var(--responsive-scale,1));height:calc(22px * var(--responsive-scale,1))}.lp-generic-text{font-size:calc(14px * var(--responsive-scale,1))}.lp-content .lp-eyebrow{font-size:calc(11px * var(--responsive-scale,1))}.lp-content .lp-title{font-size:calc(21px * var(--responsive-scale,1))}.lp-content .lp-subtitle{font-size:calc(12px * var(--responsive-scale,1))}.lp-footer{font-size:calc(11px * var(--responsive-scale,1))}.lp-button-slot.lp-button-slot-product{width:calc(220px * var(--responsive-scale,1));height:calc(270px * var(--responsive-scale,1))}.lp-button.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;gap:0}";
     css +=
-      "html,body{width:100%;height:auto;min-height:100%;overflow:auto;background:#fff}.lp-page.export-page{width:" +
+      "html{width:100%;height:100%;overflow:hidden;background:#fff}body{width:100%;height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;background:#fff}.lp-page.export-page{width:" +
       state.deviceWidth +
       "px;max-width:100%;min-height:100vh;margin:0 auto;box-shadow:0 0 35px rgba(0,0,0,.08)}";
     return (

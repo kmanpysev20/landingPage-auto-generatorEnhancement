@@ -678,7 +678,7 @@ button {
     height 0.2s,
     transform 0.18s;
   border-radius: 30px;
-  height: 100%;
+  height: auto;
   /* padding: 13px; */
   flex: 0 0 auto;
 }
@@ -737,6 +737,9 @@ button {
   background: #fff;
   scrollbar-width: none;
   position: relative;
+}
+.device-screen > .lp-page {
+  min-height: 0;
 }
 .device-screen::-webkit-scrollbar {
   display: none;
@@ -2423,6 +2426,7 @@ img.lp-hero-background {
   background: #eef0f4;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .preview-toolbar {
   height: 62px;
@@ -2449,9 +2453,12 @@ img.lp-hero-background {
   border-color: #6841e8;
 }
 .preview-overlay iframe {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
   border: 0;
   width: 100%;
-  height: calc(100% - 62px);
+  height: auto;
   background: #fff;
 }
 .toast {

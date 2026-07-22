@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>랜딩페이지 생성기</title>
+  <link rel="stylesheet" href="css/style.css?v=20260722-77">
+  <script defer src="js/jquery-3.7.1.min.js"></script>
+  <script defer src="js/translation.js?v=20260722-77"></script>
+  <script defer src="js/app.js?v=20260722-77"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-area">
+        <div class="brand-mark" aria-hidden="true">
+          <span class="brand-orbit"></span><span class="brand-core"></span>
+        </div>
+        <h1>랜딩페이지 생성기</h1>
+        <span class="beta">베타</span>
+      </div>
+      <div class="top-actions">
+        <span class="save-state"><span class="icon-check">✓</span><span id="saveStateText">저장됨</span></span>
+        <button class="icon-button" id="undoBtn" title="실행 취소" aria-label="실행 취소">↶</button>
+        <button class="icon-button" id="redoBtn" title="다시 실행" aria-label="다시 실행">↷</button>
+        <button type="button" class="secondary-button translation-open-button" id="translationBtn" title="랜딩페이지 전체 문구 번역"><span aria-hidden="true">文</span> 전체 번역</button>
+        <button type="button" class="secondary-button" id="importJspBtn" title="편집 가능한 JSP 가져오기"><span aria-hidden="true">↑</span> JSP 가져오기</button>
+        <input type="file" id="importJspInput" accept=".jsp,text/plain" hidden>
+        <div class="viewport-width-control" aria-label="미리보기 가로 크기">
+          <button type="button" id="deviceWidthDownBtn" title="가로 크기 줄이기">−</button>
+          <label><input type="number" id="deviceWidthInput" min="280" max="1024" step="1" value="365" aria-label="미리보기 가로 크기"><span>px</span></label>
+          <button type="button" id="deviceWidthUpBtn" title="가로 크기 늘리기">＋</button>
+        </div>
+        <button class="secondary-button" id="previewBtn"><span class="eye-icon">◉</span> 미리보기</button>
+        <button class="primary-button" id="publishBtn"><span class="send-icon">➤</span> 다운로드</button>
+      </div>
+    </header>
+
+    <main class="editor-layout">
+      <aside class="left-panel panel-scroll">
+        <section class="panel-section template-panel">
+          <div class="section-heading-row">
+            <h2>랜딩페이지(기존 시안은 위에 추가 예정)</h2>
+          </div>
+          <div class="template-grid" id="templateGrid"></div>
+          <div class="template-carousel-nav" id="templateCarouselNav" hidden>
+            <button type="button" id="templatePagePrev" aria-label="이전 작업 목록">‹</button>
+            <span id="templatePageIndicator">1 / 1</span>
+            <button type="button" id="templatePageNext" aria-label="다음 작업 목록">›</button>
+          </div>
+        </section>
+
+        <section class="panel-section sections-panel">
+          <h2>영역</h2>
+          <p class="section-help">드래그하여 순서를 변경하세요.</p>
+          <div class="section-list" id="sectionList"></div>
+          <button class="add-section-button" id="addSectionBtn"><span>＋</span> 섹션 추가</button>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <div class="workspace-tabs" id="workspaceTabs"></div>
+        <div class="canvas-help"><span class="help-move-icon">↕</span><strong>직접 편집</strong><span>작업 공간 드래그: 영역 선택 · Ctrl+드래그/클릭: 선택 추가 · Shift: 축 고정</span></div>
+        <div class="canvas-stage">
+          <div class="device-frame mobile" id="deviceFrame">
+            <div class="device-screen" id="deviceScreen"></div>
+            <button type="button" class="viewport-resize-handle viewport-resize-handle-left" data-viewport-resize="left" aria-label="왼쪽에서 미리보기 가로 크기 조절" title="드래그하여 가로 크기 조절"></button>
+            <button type="button" class="viewport-resize-handle viewport-resize-handle-right" data-viewport-resize="right" aria-label="오른쪽에서 미리보기 가로 크기 조절" title="드래그하여 가로 크기 조절"></button>
+          </div>
+        </div>
+        <div class="zoom-bar">
+          <button id="zoomOutBtn" aria-label="축소">−</button>
+          <span id="zoomValue">100%</span>
+          <button id="zoomInBtn" aria-label="확대">＋</button>
+        </div>
+      </section>
+
+      <aside class="right-panel panel-scroll">
+        <div class="right-tabs">
+          <button class="right-tab active" data-tab="edit">편집</button>
+          <button class="right-tab" data-tab="style">스타일</button>
+        </div>
+
+        <div class="right-content active" id="editPanel">
+          <div class="editor-empty" id="editorEmpty">편집할 섹션을 선택하세요.</div>
+          <div id="editorFields" hidden>
+            <section class="control-group" id="textControlGroup">
+              <h3>요소</h3>
+              <div class="element-subgroup" id="textFieldsGroup">
+                <div class="element-subheading-row">
+                  <h4>텍스트</h4>
+                  <button type="button" class="element-add-button" id="addTextElementBtn">＋ 텍스트 추가</button>
+                </div>
+                <div class="element-fields-list" id="textFieldsList"></div>
+              </div>
+              <div class="element-subgroup" id="buttonFieldsGroup">
+                <div class="element-subheading-row">
+                  <h4>버튼</h4>
+                  <button type="button" class="element-add-button" id="addButtonElementBtn">＋ 버튼 추가</button>
+                </div>
+                <div class="element-fields-list" id="buttonFieldsList"></div>
+              </div>
+              <div class="element-subgroup" id="shapeFieldsGroup">
+                <div class="element-subheading-row"><h4>도형</h4></div>
+                <div class="shape-inline-grid" aria-label="추가할 도형 선택">
+                  <button type="button" data-add-shape-type="rectangle"><span>▭</span><strong>사각형</strong></button>
+                  <button type="button" data-add-shape-type="rounded"><span>▢</span><strong>둥근 사각형</strong></button>
+                  <button type="button" data-add-shape-type="circle"><span>●</span><strong>원</strong></button>
+                  <button type="button" data-add-shape-type="ellipse"><span>⬭</span><strong>타원</strong></button>
+                  <button type="button" data-add-shape-type="triangle"><span>▲</span><strong>삼각형</strong></button>
+                  <button type="button" data-add-shape-type="line"><span>━</span><strong>선</strong></button>
+                </div>
+                <div class="element-fields-list" id="shapeFieldsList"></div>
+              </div>
+            </section>
+
+            <section class="control-group" id="imageControlGroup" data-editor-key="image">
+              <div class="element-subheading-row image-heading-row">
+                <h3 id="imageControlTitle">이미지</h3>
+                <button type="button" class="element-add-button" id="addImageElementBtn">＋ 이미지 추가</button>
+              </div>
+              <div class="element-field-head image-primary-field-head">
+                <h4 class="image-field-title">이미지 1</h4>
+                <button type="button" class="element-duplicate-button" id="duplicatePrimaryImageBtn" data-duplicate-editor-key="image">복제</button>
+              </div>
+              <div class="image-control-row">
+                <div class="image-thumb" id="imageThumb"></div>
+                <div class="image-actions">
+                  <label class="upload-button" for="imageUpload"><span>☁</span> <span id="imageUploadLabel">이미지 변경</span></label>
+                  <input id="imageUpload" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+                  <button class="text-button" id="removeImageBtn">이미지 제거</button>
+                </div>
+              </div>
+              <div class="image-brightness-control">
+                <label class="field-label" for="imageBrightness">밝기 / 어둡기</label>
+                <div class="range-row"><input type="range" id="imageBrightness" min="30" max="170" step="5" value="100"><output id="imageBrightnessOutput">100%</output></div>
+                <button type="button" class="text-button image-brightness-reset" id="resetImageBrightnessBtn">초기화</button>
+              </div>
+              <div class="image-size-control" id="imageSizeControl">
+                <label class="style-number-field">이미지 높이<input type="number" id="imageHeight" min="20" max="3000" step="1" placeholder="자동"><span>px</span></label>
+                <label class="image-fit-check"><input type="checkbox" id="imageFitSectionHeight"><span>부모 영역 높이에 맞춤</span></label>
+                <p>체크하면 이미지를 섹션의 남은 높이에 맞추고 넘치는 부분은 잘라냅니다.</p>
+              </div>
+              <div class="element-fields-list extra-image-fields-list" id="extraImageFieldsList"></div>
+            </section>
+
+            <section class="control-group" id="positionControlGroup">
+              <div class="position-heading-row">
+                <h3>미리보기 요소 위치</h3>
+                <span class="position-badge" id="selectedMoveLabel">요소 미선택</span>
+              </div>
+              <p class="position-help" id="positionHelp">마우스로 끌어 이동하세요. Shift는 가로·세로 축 고정, Ctrl은 10px 단위 정렬입니다.</p>
+              <div class="alignment-actions" id="multiAlignActions" hidden>
+                <button type="button" data-align="left" title="선택 요소를 섹션 왼쪽에 배치">왼쪽</button>
+                <button type="button" data-align="center" title="선택 요소를 섹션 가로 가운데에 배치">가로 중앙</button>
+                <button type="button" data-align="right" title="선택 요소를 섹션 오른쪽에 배치">오른쪽</button>
+                <button type="button" data-align="top" title="선택 요소를 섹션 위쪽에 배치">위쪽</button>
+                <button type="button" data-align="middle" title="선택 요소를 섹션 세로 가운데에 배치">세로 중앙</button>
+                <button type="button" data-align="bottom" title="선택 요소를 섹션 아래쪽에 배치">아래쪽</button>
+              </div>
+              <div class="line-align-group" id="multiLineAlignGroup" hidden>
+                <p>선택 요소끼리 같은 선에 맞춤</p>
+                <label class="line-align-overlap-check"><input type="checkbox" id="preventLineAlignOverlap" checked><span>요소 겹침 방지</span></label>
+                <div class="alignment-actions" id="multiLineAlignActions">
+                  <button type="button" data-line-align="left" title="선택 요소의 왼쪽선을 맞춤">좌측 맞춤</button>
+                  <button type="button" data-line-align="center-x" title="선택 요소의 가로 중심선을 맞춤">가로 중앙</button>
+                  <button type="button" data-line-align="right" title="선택 요소의 오른쪽선을 맞춤">우측 맞춤</button>
+                  <button type="button" data-line-align="top" title="선택 요소의 위쪽선을 맞춤">상단 맞춤</button>
+                  <button type="button" data-line-align="middle-y" title="선택 요소의 세로 중심선을 맞춤">세로 중앙</button>
+                  <button type="button" data-line-align="bottom" title="선택 요소의 아래쪽선을 맞춤">하단 맞춤</button>
+                </div>
+                <div class="line-order-actions">
+                  <button type="button" class="outline-action line-order-reverse-button" id="reverseHorizontalOrderBtn">↔ 좌우 순서 바꾸기</button>
+                  <button type="button" class="outline-action line-order-reverse-button" id="reverseVerticalOrderBtn">↕ 상하 순서 바꾸기</button>
+                </div>
+              </div>
+              <div class="grid-layout-group" id="gridLayoutGroup" hidden>
+                <p>선택 요소 격자 배치</p>
+                <div class="alignment-actions" id="gridLayoutActions"></div>
+              </div>
+              <div class="element-spacing-group" id="elementSpacingGroup" hidden>
+                <p>선택한 요소 외곽선 사이 간격</p>
+                <div class="element-spacing-fields">
+                  <label>좌우 요소 사이<input type="number" id="horizontalElementGap" min="0" max="500" step="1" value="12"><span>px</span></label>
+                  <label>위아래 요소 사이<input type="number" id="verticalElementGap" min="0" max="500" step="1" value="12"><span>px</span></label>
+                </div>
+                <p class="spacing-live-help">수치를 입력하면 선택 요소 사이 간격에 바로 반영됩니다.</p>
+              </div>
+              <div class="position-fields" id="positionFields" hidden>
+                <label>X 위치<input type="number" id="positionX" step="1"><span>px</span></label>
+                <label>Y 위치<input type="number" id="positionY" step="1"><span>px</span></label>
+              </div>
+              <div class="position-actions">
+                <button class="outline-action" id="copySelectedElementsBtn" title="선택한 텍스트·버튼·이미지·도형 복사 (Ctrl+C)">요소 복사</button>
+                <button class="outline-action" id="pasteElementsBtn" title="복사한 요소 붙여넣기 (Ctrl+V)">붙여넣기</button>
+                <button class="outline-action" id="resetElementPositionBtn">선택 요소 원위치</button>
+                <button class="outline-action" id="bringElementToFrontBtn">선택 요소 맨 위로</button>
+                <button class="outline-action" id="resetSectionPositionsBtn">섹션 전체 원위치</button>
+              </div>
+            </section>
+
+            <section class="control-group compact-actions">
+              <button class="outline-action" id="duplicateSectionBtn">섹션 복제</button>
+              <button class="outline-action danger" id="deleteSectionBtn">섹션 삭제</button>
+            </section>
+          </div>
+        </div>
+
+        <div class="right-content" id="stylePanel">
+          <section class="control-group selection-style-group" id="selectionStyleGroup">
+            <div class="position-heading-row">
+              <h3>선택 대상 스타일</h3>
+              <span class="position-badge" id="styleTargetLabel">선택 없음</span>
+            </div>
+            <p class="position-help" id="styleTargetHelp">미리보기에서 섹션 또는 요소를 선택하세요.</p>
+            <div id="selectionStyleFields" hidden>
+              <div id="typographyStyleFields">
+                <h4>텍스트</h4>
+                <label class="field-label" for="targetFontFamily">기본 글꼴</label>
+                <select id="targetFontFamily">
+                  <option value="'Noto Sans KR', 'Noto Sans', sans-serif">Noto Sans</option>
+                  <option value="Pretendard, Arial, sans-serif">Pretendard</option>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="'Times New Roman', serif">Times New Roman</option>
+                </select>
+                <div class="style-field-grid">
+                  <label>폰트 크기<input type="number" id="targetFontSize" min="8" max="160" step="1"><span>px</span></label>
+                  <label>폰트 굵기<select id="targetFontWeight"><option value="300">얇게</option><option value="400">보통</option><option value="500">중간</option><option value="600">약간 굵게</option><option value="700">굵게</option><option value="800">매우 굵게</option><option value="900">최대 굵게</option></select></label>
+                </div>
+                <div class="style-field-grid" id="textSizeFields" hidden>
+                  <label>텍스트 가로<input type="number" id="targetTextWidth" min="10" max="1024" step="1"><span>px</span></label>
+                  <label>텍스트 세로<input type="number" id="targetTextHeight" min="10" max="3000" step="1"><span>px</span></label>
+                </div>
+                <label class="style-number-field" id="textRadiusField" hidden>모서리<input type="number" id="targetTextRadius" min="0" max="500" step="1"><span>px</span></label>
+                <label class="style-color-field">폰트 색상<span class="style-color-actions"><input type="color" id="targetFontColor"><input type="text" class="hex-color-input" data-color-picker="targetFontColor" data-color-field="color" maxlength="7" placeholder="#4b5563" spellcheck="false"><button type="button" class="color-none-button" data-clear-style-color="color">색상 없음</button></span></label>
+              </div>
+              <div id="buttonStyleFields" hidden>
+                <h4>크기</h4>
+                <div class="style-field-grid">
+                  <label>가로<input type="number" id="targetButtonWidth" min="10" max="1024" step="1"><span>px</span></label>
+                  <label>세로<input type="number" id="targetButtonHeight" min="2" max="1000" step="1"><span>px</span></label>
+                </div>
+                <label class="style-number-field">모서리<input type="number" id="targetButtonRadius" min="0" max="500" step="1"><span>px</span></label>
+              </div>
+              <div class="element-effect-fields" id="elementEffectFields" hidden>
+                <h4>효과</h4>
+                <div id="brightnessEffectField" hidden>
+                  <label class="field-label" for="targetBrightness">밝기 / 어둡기</label>
+                  <div class="range-row"><input type="range" id="targetBrightness" min="30" max="170" step="5"><output id="targetBrightnessOutput">100%</output></div>
+                </div>
+                <label class="effect-toggle"><input type="checkbox" id="targetGradientEnabled"><span>그라데이션</span></label>
+                <div class="effect-options" id="gradientEffectOptions" hidden>
+                  <div class="effect-color-grid">
+                    <label>시작 색상<input type="color" id="targetGradientStart" value="#6841e8"><input type="text" class="hex-color-input effect-hex-input" data-color-picker="targetGradientStart" data-color-field="gradientStart" maxlength="7" placeholder="#6841e8" spellcheck="false"></label>
+                    <label>끝 색상<input type="color" id="targetGradientEnd" value="#ff7598"><input type="text" class="hex-color-input effect-hex-input" data-color-picker="targetGradientEnd" data-color-field="gradientEnd" maxlength="7" placeholder="#ff7598" spellcheck="false"></label>
+                  </div>
+                  <label class="style-number-field">각도<input type="number" id="targetGradientAngle" min="0" max="360" step="1"><span>°</span></label>
+                </div>
+                <div class="style-field-grid" id="rotationScaleEffectFields">
+                  <label>회전<input type="number" id="targetRotation" min="-360" max="360" step="1"><span>°</span></label>
+                  <label>크기<input type="number" id="targetScale" min="10" max="500" step="1"><span>%</span></label>
+                </div>
+                <div class="effect-check-grid">
+                  <label class="effect-toggle"><input type="checkbox" id="targetFlipX"><span>좌우 반전</span></label>
+                  <label class="effect-toggle"><input type="checkbox" id="targetFlipY"><span>상하 반전</span></label>
+                  <label class="effect-toggle"><input type="checkbox" id="targetInvertColors"><span>색상 반전</span></label>
+                </div>
+                <label class="effect-toggle effect-main-toggle"><input type="checkbox" id="targetShadowEnabled"><span>쉐도우 효과</span></label>
+                <div class="effect-options" id="shadowEffectOptions" hidden>
+                  <label class="style-color-field">그림자 색상<span class="style-color-actions"><input type="color" id="targetShadowColor" value="#000000"><input type="text" class="hex-color-input" data-color-picker="targetShadowColor" data-color-field="shadowColor" maxlength="7" placeholder="#000000" spellcheck="false"></span></label>
+                  <div class="style-field-grid">
+                    <label>X 위치<input type="number" id="targetShadowX" min="-100" max="100" step="1"><span>px</span></label>
+                    <label>Y 위치<input type="number" id="targetShadowY" min="-100" max="100" step="1"><span>px</span></label>
+                  </div>
+                  <label class="style-number-field">흐림<input type="number" id="targetShadowBlur" min="0" max="200" step="1"><span>px</span></label>
+                </div>
+                <label class="effect-toggle effect-main-toggle"><input type="checkbox" id="targetReflectionEnabled"><span>반사 효과</span></label>
+                <div class="effect-options" id="reflectionEffectOptions" hidden>
+                  <label class="style-number-field">반사 간격<input type="number" id="targetReflectionGap" min="0" max="100" step="1"><span>px</span></label>
+                </div>
+              </div>
+              <div class="context-box-style">
+                <h4>영역</h4>
+                <label class="style-number-field" id="sectionHeightField" hidden>섹션 높이<input type="number" id="targetSectionHeight" min="40" max="3000" step="1"><span>px</span></label>
+                <label class="style-color-field">배경색<span class="style-color-actions"><input type="color" id="targetBackgroundColor"><input type="text" class="hex-color-input" data-color-picker="targetBackgroundColor" data-color-field="backgroundColor" maxlength="7" placeholder="#ffffff" spellcheck="false"><button type="button" class="color-none-button" data-clear-style-color="backgroundColor">색상 없음</button></span></label>
+                <label class="style-color-field">테두리 색상<span class="style-color-actions"><input type="color" id="targetBorderColor"><input type="text" class="hex-color-input" data-color-picker="targetBorderColor" data-color-field="borderColor" maxlength="7" placeholder="#dfe2e8" spellcheck="false"><button type="button" class="color-none-button" data-clear-style-color="borderColor">색상 없음</button></span></label>
+                <label class="style-number-field">테두리 굵기<input type="number" id="targetBorderWidth" min="0" max="20" step="1"><span>px</span></label>
+              </div>
+              <button type="button" class="outline-action selection-style-reset" id="resetSelectionStyleBtn">선택 대상 스타일 초기화</button>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="sectionModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h2>섹션 추가</h2><button class="modal-close" data-close-modal>×</button></div>
+      <p>추가할 섹션 유형을 선택하세요.</p>
+      <div class="section-type-grid" id="sectionTypeGrid"></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="textTypeModal" hidden>
+    <div class="modal-card button-type-modal-card" role="dialog" aria-modal="true" aria-labelledby="textTypeModalTitle">
+      <div class="modal-head"><h2 id="textTypeModalTitle">텍스트 추가</h2><button type="button" class="modal-close" data-close-modal aria-label="닫기">×</button></div>
+      <p>추가할 텍스트 형태를 선택하세요.</p>
+      <div class="button-type-grid">
+        <button type="button" class="button-type-card" data-text-type="normal">
+          <span class="button-type-icon">T</span>
+          <span class="button-type-name">일반 텍스트</span>
+        </button>
+        <button type="button" class="button-type-card" data-text-type="srno">
+          <span class="button-type-icon">SRNO</span>
+          <span class="button-type-name">srno영역</span>
+        </button>
+        <button type="button" class="button-type-card" data-text-type="scan-count">
+          <span class="button-type-icon">#</span>
+          <span class="button-type-name">스캔횟수 영역</span>
+        </button>
+        <button type="button" class="button-type-card" data-text-type="scan-time">
+          <span class="button-type-icon">◷</span>
+          <span class="button-type-name">스캔시간 영역</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="buttonTypeModal" hidden>
+    <div class="modal-card button-type-modal-card" role="dialog" aria-modal="true" aria-labelledby="buttonTypeModalTitle">
+      <div class="modal-head"><h2 id="buttonTypeModalTitle">버튼 추가</h2><button type="button" class="modal-close" data-close-modal aria-label="닫기">×</button></div>
+      <p>추가할 버튼 형태를 선택하세요.</p>
+      <div class="button-type-grid">
+        <button type="button" class="button-type-card" data-button-type="normal">
+          <span class="button-type-icon">▭</span>
+          <span class="button-type-name">일반 버튼</span>
+        </button>
+        <button type="button" class="button-type-card" data-button-type="product">
+          <span class="button-type-icon">▣</span>
+          <span class="button-type-name">상품 버튼</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="translationModal" hidden>
+    <div class="modal-card translation-modal-card" role="dialog" aria-modal="true" aria-labelledby="translationModalTitle">
+      <div class="modal-head"><h2 id="translationModalTitle">랜딩페이지 번역</h2><button type="button" class="modal-close" data-close-modal aria-label="닫기">×</button></div>
+      <p id="translationModalDescription">기존 HiddenTag 번역 API로 랜딩페이지의 텍스트와 버튼 문구를 번역합니다.</p>
+      <div class="translation-usage" id="translationUsageBox">
+        <div><strong>월 무료 사용량</strong><span id="translationUsageText">0 / 500,000자</span></div>
+        <div class="translation-usage-track"><span id="translationUsageBar"></span></div>
+        <small>이 브라우저에서 전송한 글자 수 기준이며 매월 자동 초기화됩니다.</small>
+      </div>
+      <div class="translation-form-grid">
+        <label class="translation-field">원문 언어
+          <select id="translationSourceLanguage">
+            <option value="">자동 감지</option>
+            <option value="ko">한국어</option><option value="en">영어</option><option value="ja">일본어</option>
+            <option value="zh-CN">중국어(간체)</option><option value="zh-TW">중국어(번체)</option>
+          </select>
+        </label>
+        <label class="translation-field">번역 언어
+          <select id="translationTargetLanguage">
+            <option value="en">영어</option><option value="ja">일본어</option><option value="zh-CN">중국어(간체)</option>
+            <option value="es">스페인어</option><option value="fr">프랑스어</option>
+            <option value="de">독일어</option><option value="vi">베트남어</option><option value="th">태국어</option><option value="id">인도네시아어</option>
+          </select>
+        </label>
+        <label class="translation-field" id="translationScopeField">번역 범위
+          <select id="translationScope">
+            <option value="current">현재 작업</option><option value="all">모든 작업</option>
+          </select>
+        </label>
+      </div>
+      <div class="translation-status" id="translationStatus" role="status" aria-live="polite"></div>
+      <div class="translation-modal-actions">
+        <button type="button" class="secondary-button" id="restoreOriginalTextBtn">현재 작업 원문 복원</button>
+        <button type="button" class="primary-button" id="runTranslationBtn">번역 적용</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop download-type-modal" id="downloadTypeModal" hidden>
+    <div class="modal-card button-type-modal-card" role="dialog" aria-modal="true" aria-labelledby="downloadTypeModalTitle">
+      <div class="modal-head"><h2 id="downloadTypeModalTitle">JSP 다운로드</h2><button type="button" class="modal-close" data-close-modal aria-label="닫기">×</button></div>
+      <p>다운로드할 랜딩페이지 유형을 선택하세요.</p>
+      <div class="button-type-grid">
+        <button type="button" class="button-type-card" data-download-type="authentic">
+          <span class="button-type-icon">정품</span>
+          <span class="button-type-name">정품 랜딩페이지</span>
+          <small>landing000.jsp</small>
+        </button>
+        <button type="button" class="button-type-card" data-download-type="fake">
+          <span class="button-type-icon">가품</span>
+          <span class="button-type-name">가품 랜딩페이지</span>
+          <small>landing000.expire.jsp</small>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="preview-overlay" id="previewOverlay" hidden>
+    <div class="preview-toolbar">
+      <strong>전체 미리보기</strong>
+      <div><button id="previewDownloadBtn">다운로드</button><button id="closePreviewBtn">닫기 ×</button></div>
+    </div>
+    <iframe id="previewFrame" title="랜딩페이지 전체 미리보기"></iframe>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+
+</html>

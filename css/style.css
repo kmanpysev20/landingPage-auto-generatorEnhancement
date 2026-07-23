@@ -1682,11 +1682,16 @@ select:focus {
   position: fixed;
   z-index: 10100;
   min-width: 132px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
   padding: 6px;
   border: 1px solid #ddd8ef;
   border-radius: 9px;
   background: #fff;
   box-shadow: 0 10px 30px rgba(31, 24, 55, 0.18);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .element-context-menu[hidden] {
   display: none;

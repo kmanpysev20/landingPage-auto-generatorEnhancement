@@ -524,8 +524,27 @@
           return rect.right;
         }),
       ),
+      groupTop = Math.min.apply(
+        null,
+        rects.map(function (rect) {
+          return rect.top;
+        }),
+      ),
+      groupBottom = Math.max.apply(
+        null,
+        rects.map(function (rect) {
+          return rect.bottom;
+        }),
+      ),
+      vertical = ["top", "middle", "bottom"].indexOf(mode) >= 0,
       target =
-        mode === "left"
+        mode === "top"
+          ? groupTop
+          : mode === "bottom"
+            ? groupBottom
+            : mode === "middle"
+              ? (groupTop + groupBottom) / 2
+              : mode === "left"
           ? groupLeft
           : mode === "right"
             ? groupRight
@@ -533,7 +552,13 @@
     entries.forEach(function (entry, index) {
       let rect = rects[index],
         current =
-          mode === "left"
+          mode === "top"
+            ? rect.top
+            : mode === "bottom"
+              ? rect.bottom
+              : mode === "middle"
+                ? rect.top + rect.height / 2
+                : mode === "left"
             ? rect.left
             : mode === "right"
               ? rect.right
@@ -542,8 +567,8 @@
       setPosition(
         section,
         entry.key,
-        position.x + (target - current) / scale,
-        position.y,
+        vertical ? position.x : position.x + (target - current) / scale,
+        vertical ? position.y + (target - current) / scale : position.y,
       );
     });
     return true;
@@ -2805,6 +2830,33 @@
       $(node).css("transform", elementTransform(section, anchor.key, x, y));
     });
   }
+  function freezeFittedImagesBeforeElementDeletion(anchors) {
+    (anchors || []).forEach(function (anchor) {
+      if (anchor.key !== "image") return;
+      let section = currentTemplate().sections.find(function (item) {
+        return String(item.id) === String(anchor.sectionId);
+      });
+      if (!section || !section.image || !section.imageFitSectionHeight) return;
+      let node = null;
+      $("#deviceScreen .canvas-movable").each(function () {
+        let $node = $(this);
+        if (
+          String($node.closest(".lp-section").data("section-id")) ===
+            String(anchor.sectionId) &&
+          String($node.data("move-key")) === "image"
+        )
+          node = this;
+      });
+      if (!node) return;
+      let layoutScale = responsiveScale(state.deviceWidth) || 1;
+      if (!node.offsetWidth || !node.offsetHeight || !layoutScale) return;
+      section.imageWidth =
+        Math.round((node.offsetWidth / layoutScale) * 100) / 100;
+      section.imageHeight =
+        Math.round((node.offsetHeight / layoutScale) * 100) / 100;
+      section.imageFitSectionHeight = false;
+    });
+  }
   function setDevice() {
     state.deviceWidth = clampDeviceWidth(state.deviceWidth);
     $("#deviceWidthInput").val(state.deviceWidth);
@@ -3125,6 +3177,7 @@
         anchor.key = remapAnchorKeyAfterDeletion(anchor.key, group.keys);
     });
     pushHistory();
+    freezeFittedImagesBeforeElementDeletion(stableAnchors);
     $.each(groups, function (_, group) {
         let s = group.section,
           keys = group.keys;
@@ -5016,8 +5069,8 @@
             }),
           };
       let $menu = $("#elementContextMenu"),
-        left = Math.min(e.clientX, window.innerWidth - 150),
-        top = Math.min(e.clientY, window.innerHeight - 92);
+        left = e.clientX,
+        top = e.clientY;
       $menu
         .find('[data-element-context-action="group"]')
         .toggle(canGroup);
@@ -5026,8 +5079,24 @@
         .toggle(canUngroup);
       $menu.find("[data-group-align-menu]").toggle(canUngroup);
       $menu
-        .css({ left: Math.max(8, left), top: Math.max(8, top) })
+        .css({ left: 8, top: 8, visibility: "hidden" })
         .prop("hidden", false);
+      let menuWidth = $menu.outerWidth(),
+        menuHeight = $menu.outerHeight(),
+        viewportGap = 8;
+      left = Math.max(
+        viewportGap,
+        Math.min(e.clientX, window.innerWidth - menuWidth - viewportGap),
+      );
+      top =
+        e.clientY + menuHeight <= window.innerHeight - viewportGap
+          ? e.clientY
+          : e.clientY - menuHeight;
+      top = Math.max(
+        viewportGap,
+        Math.min(top, window.innerHeight - menuHeight - viewportGap),
+      );
+      $menu.css({ left: left, top: top, visibility: "visible" });
     });
     $("#elementContextMenu").on(
       "click",
@@ -5059,7 +5128,9 @@
             },
           );
           toast("그룹을 해제했습니다.");
-        } else if (/^group-align-(left|center|right)$/.test(action)) {
+        } else if (
+          /^group-align-(left|center|right|top|middle|bottom)$/.test(action)
+        ) {
           let group = (section.elementGroups || []).find(function (item) {
               return String(item.id) === String(target.groupId);
             }),
@@ -5072,7 +5143,14 @@
           }
           toast(
             "그룹 내부 요소를 " +
-              { left: "왼쪽", center: "가운데", right: "오른쪽" }[mode] +
+              {
+                left: "왼쪽",
+                center: "가운데",
+                right: "오른쪽",
+                top: "위쪽",
+                middle: "세로 가운데",
+                bottom: "아래쪽",
+              }[mode] +
               "으로 정렬했습니다.",
           );
         } else {

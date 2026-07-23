@@ -2261,13 +2261,14 @@
         minimumHeight,
         Math.ceil(lowestElementBottom + SECTION_ELEMENT_SAFE_INSET),
       );
-    if (Number.isFinite(highestElementTop)) {
-      let currentHeight = sectionRect.height / layoutScale;
+    if (
+      Number.isFinite(highestElementTop) &&
+      Number.isFinite(lowestElementBottom)
+    ) {
+      let elementRange = lowestElementBottom - highestElementTop;
       minimumHeight = Math.max(
         minimumHeight,
-        Math.ceil(
-          currentHeight + SECTION_ELEMENT_SAFE_INSET - highestElementTop,
-        ),
+        Math.ceil(elementRange + SECTION_ELEMENT_SAFE_INSET * 2),
       );
     }
     return Math.min(3000, minimumHeight);

@@ -2088,7 +2088,7 @@
       count = entries.length;
     $("#positionControlGroup").toggle(!!keys.length || count > 0);
     $("#headerElementTools").prop("hidden", count < 1);
-    $("#multiAlignActions").prop("hidden", count !== 1);
+    $("#multiAlignActions").prop("hidden", count < 1);
     $("#headerMultiAlignTools").prop("hidden", count < 2);
     $("#headerElementToolsLabel").text(
       count > 1 ? count + "개 요소 정렬" : "요소 정렬",
@@ -2582,29 +2582,6 @@
       });
     });
   }
-  function captureResponsiveLayout() {
-    captureResponsiveSectionHeights();
-    return captureResponsiveElementAnchors();
-  }
-  function captureResponsiveElementAnchors() {
-    let anchors = [];
-    $("#deviceScreen .canvas-movable:visible").each(function () {
-      let $node = $(this),
-        sectionNode = $node.closest(".lp-section")[0];
-      if (!sectionNode) return;
-      let rect = this.getBoundingClientRect(),
-        sectionRect = sectionNode.getBoundingClientRect();
-      if (!rect.width || !rect.height || !sectionRect.width || !sectionRect.height)
-        return;
-      anchors.push({
-        sectionId: String($(sectionNode).data("section-id")),
-        key: String($node.data("move-key")),
-        centerX: (rect.left + rect.width / 2 - sectionRect.left) / sectionRect.width,
-        centerY: (rect.top + rect.height / 2 - sectionRect.top) / sectionRect.height,
-      });
-    });
-    return anchors;
-  }
   function captureStableElementAnchors(sectionIds, excludedEntries) {
     let sectionSet = new Set(
         (sectionIds || []).map(function (id) {
@@ -2669,44 +2646,7 @@
       $(node).css("transform", elementTransform(section, anchor.key, x, y));
     });
   }
-  function restoreResponsiveElementAnchors(anchors) {
-    if (!anchors || !anchors.length) return;
-    anchors.forEach(function (anchor) {
-      let node = null;
-      $("#deviceScreen .canvas-movable").each(function () {
-        let $node = $(this),
-          sectionId = String($node.closest(".lp-section").data("section-id")),
-          key = String($node.data("move-key"));
-        if (sectionId === anchor.sectionId && key === anchor.key) node = this;
-      });
-      if (!node) return;
-      let sectionNode = $(node).closest(".lp-section")[0],
-        rect = node.getBoundingClientRect(),
-        sectionRect = sectionNode.getBoundingClientRect(),
-        scale = sectionNode.offsetWidth
-          ? sectionRect.width / sectionNode.offsetWidth
-          : 1;
-      scale = scale || 1;
-      if (!rect.width || !rect.height || !sectionRect.width || !sectionRect.height)
-        return;
-      let desiredCenterX = sectionRect.left + anchor.centerX * sectionRect.width,
-        desiredCenterY = sectionRect.top + anchor.centerY * sectionRect.height,
-        correctionX = (desiredCenterX - (rect.left + rect.width / 2)) / scale,
-        correctionY = (desiredCenterY - (rect.top + rect.height / 2)) / scale,
-        sectionId = $(sectionNode).data("section-id"),
-        key = $(node).data("move-key"),
-        section = currentTemplate().sections.find(function (item) {
-          return String(item.id) === String(sectionId);
-        });
-      if (!section || !key) return;
-      let position = getPosition(section, key),
-        x = position.x + correctionX,
-        y = position.y + correctionY;
-      setPosition(section, key, x, y);
-      $(node).css("transform", elementTransform(section, key, x, y));
-    });
-  }
-  function setDevice(anchors) {
+  function setDevice() {
     state.deviceWidth = clampDeviceWidth(state.deviceWidth);
     $("#deviceWidthInput").val(state.deviceWidth);
     $("#deviceFrame").css("width", state.deviceWidth + "px");
@@ -2714,7 +2654,6 @@
       "--responsive-scale",
       responsiveScale(state.deviceWidth),
     );
-    restoreResponsiveElementAnchors(anchors);
     $("#deviceWidthDownBtn").prop("disabled", state.deviceWidth <= 280);
     $("#deviceWidthUpBtn").prop("disabled", state.deviceWidth >= 1024);
     renderSelectionStyle();
@@ -2727,10 +2666,39 @@
   function clampDeviceWidth(value) {
     return Math.max(280, Math.min(1024, Math.round(Number(value) || 365)));
   }
+  function scaleElementPositionsForDeviceWidth(previousWidth, nextWidth) {
+    let previous = Number(previousWidth) || RESPONSIVE_BASE_WIDTH,
+      next = Number(nextWidth) || previous,
+      ratio = next / previous;
+    if (!Number.isFinite(ratio) || ratio <= 0 || Math.abs(ratio - 1) < 0.0001)
+      return;
+    $.each(state.templates || {}, function (_, template) {
+      (template.sections || []).forEach(function (section) {
+        $.each(section.positions || {}, function (key, position) {
+          if (!position) return;
+          section.positions[key] = {
+            x: Math.round((Number(position.x) || 0) * ratio * 100) / 100,
+            y: Math.round((Number(position.y) || 0) * ratio * 100) / 100,
+          };
+        });
+      });
+    });
+  }
   function changeDeviceWidth(value) {
-    let anchors = captureResponsiveLayout();
-    state.deviceWidth = clampDeviceWidth(value);
-    setDevice(anchors);
+    let previousWidth = clampDeviceWidth(state.deviceWidth),
+      nextWidth = clampDeviceWidth(value);
+    if (previousWidth === nextWidth) {
+      setDevice();
+      return;
+    }
+    captureResponsiveSectionHeights();
+    scaleElementPositionsForDeviceWidth(previousWidth, nextWidth);
+    state.deviceWidth = nextWidth;
+    $("#deviceFrame").css("width", nextWidth + "px");
+    renderTemplates();
+    renderPage();
+    setDevice();
+    renderPositionEditor();
     markChanged();
   }
   function setZoom() {

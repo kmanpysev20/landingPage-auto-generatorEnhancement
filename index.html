@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>랜딩페이지 생성기</title>
-  <link rel="stylesheet" href="css/style.css?v=20260722-81">
+  <link rel="stylesheet" href="css/style.css?v=20260723-93">
   <script defer src="js/jquery-3.7.1.min.js"></script>
-  <script defer src="js/translation.js?v=20260722-81"></script>
-  <script defer src="js/app.js?v=20260722-81"></script>
+  <script defer src="js/translation.js?v=20260723-93"></script>
+  <script defer src="js/app.js?v=20260723-93"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -18,6 +18,31 @@
         </div>
         <h1>랜딩페이지 생성기</h1>
         <span class="beta">베타</span>
+      </div>
+      <div class="header-element-tools" id="headerElementTools" hidden aria-label="선택 요소 정렬 도구">
+        <span class="header-element-tools-label" id="headerElementToolsLabel">요소 정렬</span>
+        <div class="header-align-actions" id="multiAlignActions" hidden>
+          <button type="button" data-align="left" title="선택 요소를 섹션 왼쪽에 배치">왼쪽</button>
+          <button type="button" data-align="center" title="선택 요소를 섹션 가로 가운데에 배치">가로 중앙</button>
+          <button type="button" data-align="right" title="선택 요소를 섹션 오른쪽에 배치">오른쪽</button>
+          <button type="button" data-align="top" title="선택 요소를 섹션 위쪽에 배치">위쪽</button>
+          <button type="button" data-align="middle" title="선택 요소를 섹션 세로 가운데에 배치">세로 중앙</button>
+          <button type="button" data-align="bottom" title="선택 요소를 섹션 아래쪽에 배치">아래쪽</button>
+        </div>
+        <div class="header-multi-align-tools" id="headerMultiAlignTools" hidden>
+          <div class="header-align-actions" id="multiLineAlignActions">
+            <button type="button" data-line-align="left" title="선택 요소의 왼쪽선을 맞춤">좌측 맞춤</button>
+            <button type="button" data-line-align="center-x" title="선택 요소의 가로 중심선을 맞춤">가로 중앙</button>
+            <button type="button" data-line-align="right" title="선택 요소의 오른쪽선을 맞춤">우측 맞춤</button>
+            <button type="button" data-line-align="top" title="선택 요소의 위쪽선을 맞춤">상단 맞춤</button>
+            <button type="button" data-line-align="middle-y" title="선택 요소의 세로 중심선을 맞춤">세로 중앙</button>
+            <button type="button" data-line-align="bottom" title="선택 요소의 아래쪽선을 맞춤">하단 맞춤</button>
+          </div>
+          <div class="header-order-actions">
+            <button type="button" id="reverseHorizontalOrderBtn" title="선택 요소의 좌우 순서 바꾸기">↔ 좌우 순서</button>
+            <button type="button" id="reverseVerticalOrderBtn" title="선택 요소의 상하 순서 바꾸기">↕ 상하 순서</button>
+          </div>
+        </div>
       </div>
       <div class="top-actions">
         <span class="save-state"><span class="icon-check">✓</span><span id="saveStateText">저장됨</span></span>
@@ -64,13 +89,11 @@
         <div class="canvas-stage">
           <div class="device-frame mobile" id="deviceFrame">
             <div class="device-screen" id="deviceScreen"></div>
-            <button type="button" class="viewport-resize-handle viewport-resize-handle-left" data-viewport-resize="left" aria-label="왼쪽에서 미리보기 가로 크기 조절" title="드래그하여 가로 크기 조절"></button>
-            <button type="button" class="viewport-resize-handle viewport-resize-handle-right" data-viewport-resize="right" aria-label="오른쪽에서 미리보기 가로 크기 조절" title="드래그하여 가로 크기 조절"></button>
           </div>
         </div>
         <div class="zoom-bar">
           <button id="zoomOutBtn" aria-label="축소">−</button>
-          <span id="zoomValue">100%</span>
+          <span id="zoomValue" role="button" tabindex="0" title="100%로 초기화 (Ctrl/Cmd + 0)">100%</span>
           <button id="zoomInBtn" aria-label="확대">＋</button>
         </div>
       </section>
@@ -150,29 +173,9 @@
                 <span class="position-badge" id="selectedMoveLabel">요소 미선택</span>
               </div>
               <p class="position-help" id="positionHelp">마우스로 끌어 이동하세요. Shift는 가로·세로 축 고정, Ctrl은 10px 단위 정렬입니다.</p>
-              <div class="alignment-actions" id="multiAlignActions" hidden>
-                <button type="button" data-align="left" title="선택 요소를 섹션 왼쪽에 배치">왼쪽</button>
-                <button type="button" data-align="center" title="선택 요소를 섹션 가로 가운데에 배치">가로 중앙</button>
-                <button type="button" data-align="right" title="선택 요소를 섹션 오른쪽에 배치">오른쪽</button>
-                <button type="button" data-align="top" title="선택 요소를 섹션 위쪽에 배치">위쪽</button>
-                <button type="button" data-align="middle" title="선택 요소를 섹션 세로 가운데에 배치">세로 중앙</button>
-                <button type="button" data-align="bottom" title="선택 요소를 섹션 아래쪽에 배치">아래쪽</button>
-              </div>
               <div class="line-align-group" id="multiLineAlignGroup" hidden>
                 <p>선택 요소끼리 같은 선에 맞춤</p>
                 <label class="line-align-overlap-check"><input type="checkbox" id="preventLineAlignOverlap" checked><span>요소 겹침 방지</span></label>
-                <div class="alignment-actions" id="multiLineAlignActions">
-                  <button type="button" data-line-align="left" title="선택 요소의 왼쪽선을 맞춤">좌측 맞춤</button>
-                  <button type="button" data-line-align="center-x" title="선택 요소의 가로 중심선을 맞춤">가로 중앙</button>
-                  <button type="button" data-line-align="right" title="선택 요소의 오른쪽선을 맞춤">우측 맞춤</button>
-                  <button type="button" data-line-align="top" title="선택 요소의 위쪽선을 맞춤">상단 맞춤</button>
-                  <button type="button" data-line-align="middle-y" title="선택 요소의 세로 중심선을 맞춤">세로 중앙</button>
-                  <button type="button" data-line-align="bottom" title="선택 요소의 아래쪽선을 맞춤">하단 맞춤</button>
-                </div>
-                <div class="line-order-actions">
-                  <button type="button" class="outline-action line-order-reverse-button" id="reverseHorizontalOrderBtn">↔ 좌우 순서 바꾸기</button>
-                  <button type="button" class="outline-action line-order-reverse-button" id="reverseVerticalOrderBtn">↕ 상하 순서 바꾸기</button>
-                </div>
               </div>
               <div class="grid-layout-group" id="gridLayoutGroup" hidden>
                 <p>선택 요소 격자 배치</p>

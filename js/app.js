@@ -32,6 +32,12 @@
   let RESPONSIVE_BASE_WIDTH = 360;
   let WORKSPACE_PAGE_SIZE = 3;
   let DEFAULT_WORKSPACE_SETUP_VERSION = 1;
+  let MIN_CANVAS_ZOOM = 25;
+  let MAX_CANVAS_ZOOM = 300;
+  let MIN_ELEMENT_SECTION_OVERLAP = 16;
+  let SECTION_ELEMENT_SAFE_INSET = 24;
+  let MAX_IMAGE_UPLOAD_MB = 15;
+  let MAX_IMAGE_UPLOAD_BYTES = MAX_IMAGE_UPLOAD_MB * 1024 * 1024;
   let translationController = null;
   let workspaceCarouselPage = 0;
   let uidSeq = 1;
@@ -534,7 +540,7 @@
     state.deviceWidth = clampDeviceWidth(
       s.deviceWidth || 365,
     );
-    state.zoom = s.zoom || 100;
+    state.zoom = clampZoom(s.zoom || 100);
     state.workspaceSetupVersion =
       Number(s.workspaceSetupVersion) || DEFAULT_WORKSPACE_SETUP_VERSION;
     migrateSectionStructures();
@@ -952,18 +958,20 @@
       height = rect.height / scale,
       sectionWidth = sectionRect.width / scale,
       sectionHeight = sectionRect.height / scale;
-    let minX = -left,
-      maxX = sectionWidth - left - width,
-      minY = -top,
-      maxY = sectionHeight - top - height;
-    if (minX > maxX) {
-      minX = Math.min(0, maxX);
-      maxX = Math.max(0, -left);
-    }
-    if (minY > maxY) {
-      minY = Math.min(0, maxY);
-      maxY = Math.max(0, -top);
-    }
+    let overlapX = Math.min(
+        MIN_ELEMENT_SECTION_OVERLAP,
+        width,
+        sectionWidth,
+      ),
+      overlapY = Math.min(
+        MIN_ELEMENT_SECTION_OVERLAP,
+        height,
+        sectionHeight,
+      ),
+      minX = overlapX - left - width,
+      maxX = sectionWidth - overlapX - left,
+      minY = overlapY - top - height,
+      maxY = sectionHeight - overlapY - top;
     return {
       minX: minX,
       maxX: maxX,
@@ -1843,19 +1851,19 @@
             field.key +
             '">복제</button><button type="button" class="element-remove-button" data-remove-text-key="' +
             field.key +
-            '">삭제</button></span></div><input type="text" class="dynamic-text-input" data-text-key="' +
+            '">삭제</button></span></div><textarea class="dynamic-text-input" data-text-key="' +
             field.key +
             '"' +
             (textType !== "normal"
               ? ' readonly aria-readonly="true" title="시스템 코드는 수정할 수 없습니다."'
               : "") +
-            ' maxlength="120" value="' +
-            safeAttr(
+            ' maxlength="120" rows="2">' +
+            safeText(
               textType === "scan-time"
                 ? formatScanDate(new Date())
                 : field.value,
             ) +
-            '"></div>'
+            "</textarea></div>"
           );
         })
         .join(""),
@@ -2079,7 +2087,12 @@
       key = state.selectedElementKey,
       count = entries.length;
     $("#positionControlGroup").toggle(!!keys.length || count > 0);
-    $("#multiAlignActions").prop("hidden", count < 1);
+    $("#headerElementTools").prop("hidden", count < 1);
+    $("#multiAlignActions").prop("hidden", count !== 1);
+    $("#headerMultiAlignTools").prop("hidden", count < 2);
+    $("#headerElementToolsLabel").text(
+      count > 1 ? count + "개 요소 정렬" : "요소 정렬",
+    );
     $("#multiLineAlignGroup").prop("hidden", count < 2);
     $("#gridLayoutGroup").prop("hidden", count < 2);
     $("#elementSpacingGroup").prop("hidden", count < 2);
@@ -2118,7 +2131,7 @@
     if (count > 1) {
       $("#selectedMoveLabel").text(count + "개 선택");
       $("#positionHelp").text(
-        "묶음 전체를 섹션 안에 배치하거나 선택 요소끼리 같은 가로·세로선에 맞춥니다.",
+        "묶음을 이동하거나 같은 선에 맞춥니다. 각 요소는 섹션에 최소 16px 이상 걸쳐 있어야 합니다.",
       );
       $("#positionFields").prop("hidden", true);
       $("#resetElementPositionBtn").prop("disabled", false);
@@ -2138,7 +2151,7 @@
     let p = getPosition(s, key);
     $("#selectedMoveLabel").text(numberedElementLabel(s, key));
     $("#positionHelp").text(
-      "선택 요소를 섹션의 가로·세로 방향으로 배치하거나, Ctrl을 눌러 선택을 추가할 수 있습니다.",
+      "섹션 바깥까지 이동할 수 있으며 최소 16px는 섹션에 걸쳐 있어야 합니다. Ctrl을 누르면 선택을 추가합니다.",
     );
     $("#positionFields").prop("hidden", false);
     $("#positionX").val(p.x);
@@ -2211,6 +2224,82 @@
         value = Math.max(min, Math.min(max, value));
         this.value = value;
         applySelectionStyle(field, value);
+      });
+  }
+  function minimumSectionHeightForElements(section, sectionNode) {
+    let minimumHeight = 40,
+      highestElementTop = Infinity,
+      lowestElementBottom = -Infinity;
+    if (!section) return minimumHeight;
+    if (!sectionNode) {
+      $("#deviceScreen .lp-section").each(function () {
+        if (String($(this).data("section-id")) === String(section.id))
+          sectionNode = this;
+      });
+    }
+    if (!sectionNode) return minimumHeight;
+    let sectionRect = sectionNode.getBoundingClientRect(),
+      canvasScale = sectionNode.offsetWidth
+        ? sectionRect.width / sectionNode.offsetWidth
+        : 1,
+      layoutScale = (canvasScale || 1) * responsiveScale(state.deviceWidth);
+    if (!sectionRect.width || !sectionRect.height || !layoutScale)
+      return minimumHeight;
+    $(sectionNode)
+      .find(".canvas-movable:visible")
+      .each(function () {
+        let rect = this.getBoundingClientRect(),
+          elementTop = (rect.top - sectionRect.top) / layoutScale,
+          elementBottom = (rect.bottom - sectionRect.top) / layoutScale;
+        if (Number.isFinite(elementTop))
+          highestElementTop = Math.min(highestElementTop, elementTop);
+        if (Number.isFinite(elementBottom))
+          lowestElementBottom = Math.max(lowestElementBottom, elementBottom);
+      });
+    if (Number.isFinite(lowestElementBottom))
+      minimumHeight = Math.max(
+        minimumHeight,
+        Math.ceil(lowestElementBottom + SECTION_ELEMENT_SAFE_INSET),
+      );
+    if (Number.isFinite(highestElementTop)) {
+      let currentHeight = sectionRect.height / layoutScale;
+      minimumHeight = Math.max(
+        minimumHeight,
+        Math.ceil(
+          currentHeight + SECTION_ELEMENT_SAFE_INSET - highestElementTop,
+        ),
+      );
+    }
+    return Math.min(3000, minimumHeight);
+  }
+  function bindSectionHeightInput() {
+    let $input = $("#targetSectionHeight");
+    function minimumHeight() {
+      let target = selectionStyleTargets(),
+        first = target.kind === "section" ? target.items[0] : null,
+        value = first
+          ? minimumSectionHeightForElements(first.section, first.node)
+          : 40;
+      $input.attr("min", value);
+      return value;
+    }
+    $input
+      .on("input", function () {
+        if (this.value === "") return;
+        let value = Number(this.value),
+          min = minimumHeight();
+        if (Number.isFinite(value) && value >= min && value <= 3000)
+          applySelectionStyle("height", value);
+      })
+      .on("change", function () {
+        let min = minimumHeight();
+        if (this.value === "" || !Number.isFinite(Number(this.value))) {
+          renderSelectionStyle();
+          return;
+        }
+        let value = Math.max(min, Math.min(3000, Number(this.value)));
+        this.value = value;
+        applySelectionStyle("height", value);
       });
   }
   function responsiveBaseValue(value) {
@@ -2377,15 +2466,21 @@
       );
       $("#buttonStyleFields").prop("hidden", true);
       $("#sectionHeightField").prop("hidden", false);
-      $("#targetSectionHeight").val(
-        stored.height !== undefined
-          ? stored.height
-          : Math.round(
-              responsiveBaseValue(
-                parseFloat(computed ? computed.height : 0),
-              ),
-            ) || 40,
+      let minimumSectionHeight = minimumSectionHeightForElements(
+        first.section,
+        first.node,
       );
+      $("#targetSectionHeight")
+        .attr("min", minimumSectionHeight)
+        .val(
+          stored.height !== undefined
+            ? stored.height
+            : Math.round(
+                responsiveBaseValue(
+                  parseFloat(computed ? computed.height : 0),
+                ),
+              ) || 40,
+        );
     }
     $("#brightnessEffectField").prop("hidden", !showBrightness);
     $("#targetBrightness").val(
@@ -2510,6 +2605,70 @@
     });
     return anchors;
   }
+  function captureStableElementAnchors(sectionIds, excludedEntries) {
+    let sectionSet = new Set(
+        (sectionIds || []).map(function (id) {
+          return String(id);
+        }),
+      ),
+      excludedSet = new Set(
+        (excludedEntries || []).map(function (entry) {
+          return String(entry.sectionId) + "::" + String(entry.key);
+        }),
+      ),
+      anchors = [];
+    $("#deviceScreen .canvas-movable:visible").each(function () {
+      let $node = $(this),
+        sectionNode = $node.closest(".lp-section")[0],
+        sectionId = sectionNode
+          ? String($(sectionNode).data("section-id"))
+          : "",
+        key = String($node.data("move-key") || "");
+      if (!sectionNode || !key || (sectionSet.size && !sectionSet.has(sectionId)))
+        return;
+      if (excludedSet.has(sectionId + "::" + key)) return;
+      let rect = this.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      anchors.push({
+        sectionId: sectionId,
+        key: key,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2,
+      });
+    });
+    return anchors;
+  }
+  function restoreStableElementAnchors(anchors) {
+    (anchors || []).forEach(function (anchor) {
+      let node = null;
+      $("#deviceScreen .canvas-movable").each(function () {
+        let $node = $(this),
+          sectionId = String($node.closest(".lp-section").data("section-id")),
+          key = String($node.data("move-key") || "");
+        if (sectionId === anchor.sectionId && key === anchor.key) node = this;
+      });
+      if (!node) return;
+      let sectionNode = $(node).closest(".lp-section")[0],
+        section = currentTemplate().sections.find(function (item) {
+          return String(item.id) === anchor.sectionId;
+        });
+      if (!sectionNode || !section) return;
+      let rect = node.getBoundingClientRect(),
+        sectionRect = sectionNode.getBoundingClientRect(),
+        scale = sectionNode.offsetWidth
+          ? sectionRect.width / sectionNode.offsetWidth
+          : 1;
+      scale = scale || 1;
+      if (!rect.width || !rect.height) return;
+      let position = getPosition(section, anchor.key),
+        x = position.x +
+          (anchor.centerX - (rect.left + rect.width / 2)) / scale,
+        y = position.y +
+          (anchor.centerY - (rect.top + rect.height / 2)) / scale;
+      setPosition(section, anchor.key, x, y);
+      $(node).css("transform", elementTransform(section, anchor.key, x, y));
+    });
+  }
   function restoreResponsiveElementAnchors(anchors) {
     if (!anchors || !anchors.length) return;
     anchors.forEach(function (anchor) {
@@ -2575,9 +2734,44 @@
     markChanged();
   }
   function setZoom() {
+    state.zoom = clampZoom(state.zoom);
     $("#deviceFrame").css("transform", "scale(" + state.zoom / 100 + ")");
     $("#zoomValue").text(state.zoom + "%");
+    $("#zoomOutBtn").prop("disabled", state.zoom <= MIN_CANVAS_ZOOM);
+    $("#zoomInBtn").prop("disabled", state.zoom >= MAX_CANVAS_ZOOM);
     requestAnimationFrame(renderResizeHandle);
+  }
+  function clampZoom(value) {
+    return Math.max(
+      MIN_CANVAS_ZOOM,
+      Math.min(MAX_CANVAS_ZOOM, Math.round(Number(value) || 100)),
+    );
+  }
+  function changeZoom(value, anchorEvent) {
+    let nextZoom = clampZoom(value);
+    if (nextZoom === state.zoom) return;
+    let stage = $(".canvas-stage")[0],
+      frame = $("#deviceFrame")[0],
+      beforeRect = stage && frame ? frame.getBoundingClientRect() : null,
+      anchorX = anchorEvent ? anchorEvent.clientX : null,
+      anchorY = anchorEvent ? anchorEvent.clientY : null,
+      ratioX =
+        beforeRect && beforeRect.width && anchorX !== null
+          ? (anchorX - beforeRect.left) / beforeRect.width
+          : 0.5,
+      ratioY =
+        beforeRect && beforeRect.height && anchorY !== null
+          ? (anchorY - beforeRect.top) / beforeRect.height
+          : 0.5;
+    state.zoom = nextZoom;
+    setZoom();
+    if (!stage || !frame || !beforeRect || anchorX === null || anchorY === null)
+      return;
+    requestAnimationFrame(function () {
+      let afterRect = frame.getBoundingClientRect();
+      stage.scrollLeft += afterRect.left + afterRect.width * ratioX - anchorX;
+      stage.scrollTop += afterRect.top + afterRect.height * ratioY - anchorY;
+    });
   }
   function selectTemplate(key) {
     if (key === state.activeTemplate) return;
@@ -2740,6 +2934,23 @@
     s.extraShapes.splice(index, 1);
     shiftIndexedElementData(s, "shape", index, oldLength);
   }
+  function remapAnchorKeyAfterDeletion(key, deletedKeys) {
+    let indexedPrefixes = ["extraText", "button", "extraImage", "shape"];
+    for (let i = 0; i < indexedPrefixes.length; i++) {
+      let prefix = indexedPrefixes[i],
+        match = String(key).match(new RegExp("^" + prefix + "(\\d+)$"));
+      if (!match) continue;
+      let oldIndex = Number(match[1]),
+        removedBefore = (deletedKeys || []).filter(function (deletedKey) {
+          let deletedMatch = String(deletedKey).match(
+            new RegExp("^" + prefix + "(\\d+)$"),
+          );
+          return deletedMatch && Number(deletedMatch[1]) < oldIndex;
+        }).length;
+      return prefix + (oldIndex - removedBefore);
+    }
+    return key;
+  }
   function deleteSelectedElements(entries) {
     let groups = {};
     entries.forEach(function (entry) {
@@ -2750,8 +2961,17 @@
       if (groups[entry.sectionId].keys.indexOf(entry.key) < 0)
         groups[entry.sectionId].keys.push(entry.key);
     });
-    mutateWithHistory(function () {
-      $.each(groups, function (_, group) {
+    let stableAnchors = captureStableElementAnchors(
+      Object.keys(groups),
+      entries,
+    );
+    stableAnchors.forEach(function (anchor) {
+      let group = groups[anchor.sectionId];
+      if (group)
+        anchor.key = remapAnchorKeyAfterDeletion(anchor.key, group.keys);
+    });
+    pushHistory();
+    $.each(groups, function (_, group) {
         let s = group.section,
           keys = group.keys;
         keys
@@ -2814,10 +3034,14 @@
           .forEach(function (key) {
             deleteShapeElement(s, key);
           });
-      });
-      state.selectedElements = [];
-      state.selectedElementKey = null;
     });
+    state.selectedElements = [];
+    state.selectedElementKey = null;
+    renderAll();
+    restoreStableElementAnchors(stableAnchors);
+    keepRenderedElementsInsideSections();
+    renderResizeHandle();
+    markChanged();
   }
 
   function clipboardItemFromEntry(entry) {
@@ -3141,14 +3365,14 @@
         ";--page-font:" +
         t.style.font +
         ";min-height:100vh;background:#fff;font-family:var(--page-font);color:#4b5563;max-width:540px;margin:0 auto;box-shadow:0 0 35px rgba(0,0,0,.08)}" +
-        '.lp-section{position:relative}.lp-hero{height:620px;background-position:center;background-size:cover;display:flex;align-items:flex-end;justify-content:center;color:#fff;text-align:center;overflow:hidden}.lp-hero:before{content:"";position:absolute;inset:0;background:transparent;pointer-events:none}.lp-hero-content{position:relative;z-index:1;padding:0 28px 42px;width:100%}.lp-eyebrow{font-size:15px;font-weight:700;margin-bottom:6px}.lp-title{font-size:34px;line-height:1.13;margin:0;font-weight:900;letter-spacing:-1px}.lp-subtitle{font-size:15px;margin:10px 0 18px;line-height:1.55}.lp-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:220px;min-height:46px;padding:10px 24px;border-radius:var(--button-radius);background:#fff;color:#292d35;text-decoration:none;font-size:14px;font-weight:800;box-shadow:0 7px 20px rgba(0,0,0,.15)}.lp-button-image{width:22px;height:22px;flex:0 0 auto;object-fit:contain}.lp-content{text-align:center;padding:31px 20px;background:var(--brand-sub)}.lp-content .lp-eyebrow{font-size:12px;color:var(--brand-main)}.lp-content .lp-title{font-size:24px}.lp-content .lp-subtitle{font-size:13px;color:#555b66}.lp-image-grid{display:block}.lp-image-grid img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:8px}.lp-footer{padding:22px;text-align:center;background:#111;color:#fff;font-size:12px}.lp-footer-text{display:inline-block}@media(max-width:560px){.lp-page{max-width:none;box-shadow:none}.lp-hero{height:calc(100vh - 100px);min-height:520px}}';
+        '.lp-section{position:relative}.lp-hero{height:620px;background-position:center;background-size:cover;display:flex;align-items:flex-end;justify-content:center;color:#fff;text-align:center;overflow:visible}.lp-hero:before{content:"";position:absolute;inset:0;background:transparent;pointer-events:none}.lp-hero-content{position:relative;z-index:1;padding:0 28px 42px;width:100%}.lp-eyebrow{font-size:15px;font-weight:700;margin-bottom:6px}.lp-title{font-size:34px;line-height:1.13;margin:0;font-weight:900;letter-spacing:-1px}.lp-subtitle{font-size:15px;margin:10px 0 18px;line-height:1.55}.lp-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:220px;min-height:46px;padding:10px 24px;border-radius:var(--button-radius);background:#fff;color:#292d35;text-decoration:none;font-size:14px;font-weight:800;box-shadow:0 7px 20px rgba(0,0,0,.15)}.lp-button-image{width:22px;height:22px;flex:0 0 auto;object-fit:contain}.lp-content{text-align:center;padding:31px 20px;background:var(--brand-sub)}.lp-content .lp-eyebrow{font-size:12px;color:var(--brand-main)}.lp-content .lp-title{font-size:24px}.lp-content .lp-subtitle{font-size:13px;color:#555b66}.lp-image-grid{display:block}.lp-image-grid img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:8px}.lp-footer{padding:22px;text-align:center;background:#111;color:#fff;font-size:12px}.lp-footer-text{display:inline-block}@media(max-width:560px){.lp-page{max-width:none;box-shadow:none}.lp-hero{height:calc(100vh - 100px);min-height:520px}}';
       css +=
         ".lp-hero-background{position:absolute;inset:0;z-index:0;background-position:center;background-size:cover}.lp-hero:before{z-index:1}.lp-hero-content{z-index:2}.lp-element-image{max-width:100%;object-fit:cover}.lp-generic-text{display:block;margin:12px 20px;text-align:center}.lp-extra-texts{text-align:center}.lp-extra-texts .lp-generic-text{margin:8px 0}.lp-extra-images{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin:10px 0}.lp-extra-image{width:64px;height:64px;object-fit:contain}.lp-buttons{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin-top:13px;pointer-events:none}.lp-buttons .lp-button{margin:0}.lp-button-slot{pointer-events:none}.lp-button-slot .lp-button{pointer-events:auto}.lp-button-image{display:inline-block;width:22px;height:22px;margin:0;object-fit:contain}.lp-button-slot-product{width:220px;height:270px}.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;padding:0;gap:0;flex-direction:column;align-items:stretch;justify-content:flex-start;overflow:hidden}.lp-product-button .lp-button-image{display:block;width:100%;height:auto;min-height:0;flex:1 1 auto;object-fit:cover}.lp-product-button .lp-button-text{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;padding:10px;background:#fff;text-align:center;line-height:1.35;flex:0 0 auto}";
       css +=
         ".lp-content.image-fit-section,.lp-footer.image-fit-section{display:flex;flex-direction:column;overflow:hidden}.lp-content.image-fit-section .lp-image-grid{flex:1 1 0;min-height:0}.lp-content.image-fit-section .lp-image-grid img{width:100%;height:100%;max-height:none;object-fit:cover}.lp-footer.image-fit-section>.lp-element-image{flex:1 1 0;align-self:stretch;width:100%;height:auto;min-height:0;max-height:none;object-fit:cover}";
     }
     css +=
-      ".lp-eyebrow{font-size:calc(14px * var(--responsive-scale,1))}.lp-title{font-size:calc(32px * var(--responsive-scale,1))}.lp-subtitle{font-size:calc(14px * var(--responsive-scale,1))}.lp-button-slot{position:relative;display:inline-flex;align-items:center;justify-content:center;width:calc(205px * var(--responsive-scale,1));height:calc(42px * var(--responsive-scale,1));flex:0 0 auto;overflow:visible}.lp-button{gap:calc(8px * var(--responsive-scale,1));min-width:calc(205px * var(--responsive-scale,1));min-height:calc(42px * var(--responsive-scale,1));font-size:calc(13px * var(--responsive-scale,1))}.lp-button-image{width:calc(22px * var(--responsive-scale,1));height:calc(22px * var(--responsive-scale,1))}.lp-generic-text{font-size:calc(14px * var(--responsive-scale,1))}.lp-content .lp-eyebrow{font-size:calc(11px * var(--responsive-scale,1))}.lp-content .lp-title{font-size:calc(21px * var(--responsive-scale,1))}.lp-content .lp-subtitle{font-size:calc(12px * var(--responsive-scale,1))}.lp-footer{font-size:calc(11px * var(--responsive-scale,1))}.lp-button-slot.lp-button-slot-product{width:calc(220px * var(--responsive-scale,1));height:calc(270px * var(--responsive-scale,1))}.lp-button.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;gap:0}";
+      ".lp-eyebrow,.lp-title,.lp-subtitle,.lp-footer-text,.lp-generic-text{white-space:pre-wrap}.lp-eyebrow{font-size:calc(14px * var(--responsive-scale,1))}.lp-title{font-size:calc(32px * var(--responsive-scale,1))}.lp-subtitle{font-size:calc(14px * var(--responsive-scale,1))}.lp-button-slot{position:relative;display:inline-flex;align-items:center;justify-content:center;width:calc(205px * var(--responsive-scale,1));height:calc(42px * var(--responsive-scale,1));flex:0 0 auto;overflow:visible}.lp-button{gap:calc(8px * var(--responsive-scale,1));min-width:calc(205px * var(--responsive-scale,1));min-height:calc(42px * var(--responsive-scale,1));font-size:calc(13px * var(--responsive-scale,1))}.lp-button-image{width:calc(22px * var(--responsive-scale,1));height:calc(22px * var(--responsive-scale,1))}.lp-generic-text{font-size:calc(14px * var(--responsive-scale,1))}.lp-content .lp-eyebrow{font-size:calc(11px * var(--responsive-scale,1))}.lp-content .lp-title{font-size:calc(21px * var(--responsive-scale,1))}.lp-content .lp-subtitle{font-size:calc(12px * var(--responsive-scale,1))}.lp-footer{font-size:calc(11px * var(--responsive-scale,1))}.lp-button-slot.lp-button-slot-product{width:calc(220px * var(--responsive-scale,1));height:calc(270px * var(--responsive-scale,1))}.lp-button.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;gap:0}";
     css +=
       "html{width:100%;height:100%;overflow:hidden;background:#fff}body{width:100%;height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;background:#fff}.lp-page.export-page{width:" +
       state.deviceWidth +
@@ -3772,6 +3996,29 @@
   function applySelectionStyle(field, value) {
     let target = selectionStyleTargets();
     if (!target.kind) return;
+    let layoutAffectingFields = [
+        "width",
+        "height",
+        "fontFamily",
+        "fontSize",
+        "fontWeight",
+        "lineHeight",
+        "letterSpacing",
+        "borderWidth",
+      ],
+      shouldPreserveElementAnchors =
+        (target.kind === "element" &&
+          layoutAffectingFields.indexOf(field) >= 0) ||
+        (target.kind === "section" && field === "height"),
+      stableAnchors = shouldPreserveElementAnchors
+        ? captureStableElementAnchors(
+            target.items.map(function (item) {
+              return item.sectionId !== undefined
+                ? item.sectionId
+                : item.section && item.section.id;
+            }),
+          )
+        : [];
     target.items.forEach(function (item) {
       if (target.kind === "element") {
         item.section.elementStyles = item.section.elementStyles || {};
@@ -3786,6 +4033,11 @@
       }
     });
     renderPage();
+    if (stableAnchors.length) {
+      restoreStableElementAnchors(stableAnchors);
+      keepRenderedElementsInsideSections();
+      renderResizeHandle();
+    }
     renderSelectionStyle();
     markChanged();
   }
@@ -4010,36 +4262,7 @@
       let s = currentSection(),
         key = String($(this).data("remove-text-key"));
       if (!s || !key) return;
-      mutateWithHistory(function () {
-        let isLast = sectionTextFields(s).length <= 1;
-        resetElementData(s, key);
-        if (isLast) {
-          clearTextValue(s, key);
-          s.deletedTextKeys = (s.deletedTextKeys || []).filter(
-            function (deletedKey) {
-              return deletedKey !== key;
-            },
-          );
-        } else if (/^extraText/.test(key)) {
-          let index = Number(key.replace("extraText", ""));
-          s.extraTexts = s.extraTexts || [];
-          s.extraTexts.splice(index, 1);
-          if (s.extraTextClasses) s.extraTextClasses.splice(index, 1);
-          if (s.extraTextTags) s.extraTextTags.splice(index, 1);
-          if (s.extraTextTypes) s.extraTextTypes.splice(index, 1);
-          for (let i = index + 1; i <= s.extraTexts.length; i++) {
-            if (s.positions["extraText" + i]) {
-              s.positions["extraText" + (i - 1)] = s.positions["extraText" + i];
-              delete s.positions["extraText" + i];
-            }
-          }
-        } else {
-          s.deletedTextKeys = s.deletedTextKeys || [];
-          if (s.deletedTextKeys.indexOf(key) < 0) s.deletedTextKeys.push(key);
-        }
-        state.selectedElements = [];
-        state.selectedElementKey = null;
-      });
+      deleteSelectedElements([{ sectionId: s.id, section: s, key: key }]);
     });
     $("#buttonFieldsList").on("input", ".dynamic-button-input", function () {
       updateSectionButton(
@@ -4136,64 +4359,28 @@
       let s = currentSection(),
         index = Number($(this).data("remove-shape"));
       if (!s || !Number.isInteger(index)) return;
-      mutateWithHistory(function () {
-        deleteShapeElement(s, "shape" + index);
-        state.selectedElements = [];
-        state.selectedElementKey = null;
-      });
+      deleteSelectedElements([
+        { sectionId: s.id, section: s, key: "shape" + index },
+      ]);
     });
     $("#buttonFieldsList").on("click", "[data-remove-button]", function () {
       let s = currentSection(),
         index = Number($(this).data("remove-button"));
       if (!s || index < 0) return;
-      mutateWithHistory(function () {
-        let buttons = sectionButtons(s),
-          isLast = buttons.length <= 1,
-          key = index === 0 ? "button" : "button" + index;
-        resetElementData(s, key);
-        if (isLast) {
-          if (index === 0) {
-            s.primaryButtonRemoved = false;
-            s.buttonText = "";
-            s.buttonImage = "";
-            s.buttonBackgroundImage = "";
-            s.buttonContentOrder = "image-text";
-            s.buttonContentGap = 0;
-            s.buttonType = "normal";
-            s.buttonLink = "#";
-          } else {
-            s.extraButtons[index - 1] = {
-              text: "",
-              image: "",
-              backgroundImage: "",
-              contentOrder: "image-text",
-              contentGap: 0,
-              buttonType: "normal",
-              link: "#",
-            };
-          }
-        } else if (index === 0) {
-          s.primaryButtonRemoved = true;
-        } else {
-          s.extraButtons = s.extraButtons || [];
-          s.extraButtons.splice(index - 1, 1);
-          for (let i = index + 1; i <= s.extraButtons.length + 1; i++) {
-            if (s.positions["button" + i]) {
-              s.positions["button" + (i - 1)] = s.positions["button" + i];
-              delete s.positions["button" + i];
-            }
-          }
-        }
-        state.selectedElements = [];
-        state.selectedElementKey = null;
-      });
+      deleteSelectedElements([
+        {
+          sectionId: s.id,
+          section: s,
+          key: index === 0 ? "button" : "button" + index,
+        },
+      ]);
     });
     $("#buttonFieldsList").on("change", ".dynamic-button-image", function () {
       let file = this.files && this.files[0],
         index = Number($(this).data("button-index"));
       if (!file) return;
-      if (file.size > 6 * 1024 * 1024) {
-        toast("이미지는 6MB 이하로 선택하세요.");
+      if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+        toast("이미지는 " + MAX_IMAGE_UPLOAD_MB + "MB 이하로 선택하세요.");
         this.value = "";
         return;
       }
@@ -4228,8 +4415,8 @@
         let file = this.files && this.files[0],
           index = Number($(this).data("button-index"));
         if (!file) return;
-        if (file.size > 6 * 1024 * 1024) {
-          toast("이미지는 6MB 이하로 선택하세요.");
+        if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+          toast("이미지는 " + MAX_IMAGE_UPLOAD_MB + "MB 이하로 선택하세요.");
           this.value = "";
           return;
         }
@@ -4261,8 +4448,8 @@
     $("#imageUpload").on("change", function () {
       let file = this.files && this.files[0];
       if (!file) return;
-      if (file.size > 6 * 1024 * 1024) {
-        toast("이미지는 6MB 이하로 선택하세요.");
+      if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+        toast("이미지는 " + MAX_IMAGE_UPLOAD_MB + "MB 이하로 선택하세요.");
         return;
       }
       let reader = new FileReader();
@@ -4280,9 +4467,7 @@
     $("#removeImageBtn").on("click", function () {
       let s = currentSection();
       if (!s) return;
-      mutateWithHistory(function () {
-        s.image = "";
-      });
+      deleteSelectedElements([{ sectionId: s.id, section: s, key: "image" }]);
     });
     $("#imageBrightness").on("input", function () {
       let s = currentSection();
@@ -4360,8 +4545,8 @@
         let file = this.files && this.files[0],
           index = Number($(this).data("extra-image-index"));
         if (!file) return;
-        if (file.size > 6 * 1024 * 1024) {
-          toast("이미지는 6MB 이하로 선택하세요.");
+        if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+          toast("이미지는 " + MAX_IMAGE_UPLOAD_MB + "MB 이하로 선택하세요.");
           this.value = "";
           return;
         }
@@ -4387,25 +4572,13 @@
         let s = currentSection(),
           index = Number($(this).data("remove-extra-image"));
         if (!s || index < 0) return;
-        mutateWithHistory(function () {
-          let oldLength = (s.extraImages || []).length;
-          resetElementData(s, "extraImage" + index);
-          s.extraImages.splice(index, 1);
-          for (let i = index + 1; i < oldLength; i++) {
-            let from = "extraImage" + i,
-              to = "extraImage" + (i - 1);
-            if (s.positions && s.positions[from]) {
-              s.positions[to] = s.positions[from];
-              delete s.positions[from];
-            }
-            if (s.elementStyles && s.elementStyles[from]) {
-              s.elementStyles[to] = s.elementStyles[from];
-              delete s.elementStyles[from];
-            }
-          }
-          state.selectedElements = [];
-          state.selectedElementKey = null;
-        });
+        deleteSelectedElements([
+          {
+            sectionId: s.id,
+            section: s,
+            key: "extraImage" + index,
+          },
+        ]);
       },
     );
     $("#duplicateSectionBtn").on("click", function () {
@@ -4503,7 +4676,7 @@
       applySelectionStyle(field, value);
     });
     bindNumericStyleInput("#targetBorderWidth", "borderWidth", 0, 20);
-    bindNumericStyleInput("#targetSectionHeight", "height", 40, 3000);
+    bindSectionHeightInput();
     bindNumericStyleInput("#targetButtonWidth", "width", 10, 1024);
     bindNumericStyleInput("#targetButtonHeight", "height", 2, 1000);
     bindNumericStyleInput("#targetButtonRadius", "borderRadius", 0, 500);
@@ -4558,63 +4731,6 @@
         });
       });
     });
-    let viewportResizeDrag = null;
-    $("#deviceFrame").on(
-      "pointerdown",
-      "[data-viewport-resize]",
-      function (e) {
-        if (e.button !== undefined && e.button !== 0) return;
-        e.preventDefault();
-        e.stopPropagation();
-        let frame = $("#deviceFrame")[0],
-          frameRect = frame.getBoundingClientRect(),
-          scale = frame.offsetWidth ? frameRect.width / frame.offsetWidth : 1;
-        viewportResizeDrag = {
-          handle: this,
-          pointerId: e.pointerId,
-          direction: $(this).attr("data-viewport-resize"),
-          startX: e.clientX,
-          startWidth: state.deviceWidth,
-          scale: scale || 1,
-          anchors: captureResponsiveLayout(),
-          moved: false,
-        };
-        try {
-          this.setPointerCapture(e.pointerId);
-        } catch (ignore) {}
-        $("body").addClass("viewport-resizing");
-      },
-    );
-    $(document).on("pointermove.viewportWidth", function (e) {
-      if (!viewportResizeDrag) return;
-      e.preventDefault();
-      let dx =
-        (e.clientX - viewportResizeDrag.startX) /
-        viewportResizeDrag.scale;
-      let direction = viewportResizeDrag.direction === "left" ? -1 : 1;
-      let width = clampDeviceWidth(
-        viewportResizeDrag.startWidth + direction * dx * 2,
-      );
-      if (width === state.deviceWidth) return;
-      state.deviceWidth = width;
-      viewportResizeDrag.moved = true;
-      setDevice(viewportResizeDrag.anchors);
-    });
-    $(document).on(
-      "pointerup.viewportWidth pointercancel.viewportWidth",
-      function () {
-        if (!viewportResizeDrag) return;
-        try {
-          viewportResizeDrag.handle.releasePointerCapture(
-            viewportResizeDrag.pointerId,
-          );
-        } catch (ignore) {}
-        let moved = viewportResizeDrag.moved;
-        viewportResizeDrag = null;
-        $("body").removeClass("viewport-resizing");
-        if (moved) markChanged();
-      },
-    );
     $("#deviceWidthInput").on("change", function () {
       changeDeviceWidth(this.value);
     });
@@ -4625,12 +4741,24 @@
       changeDeviceWidth(state.deviceWidth + 20);
     });
     $("#zoomOutBtn").on("click", function () {
-      state.zoom = Math.max(60, state.zoom - 10);
-      setZoom();
+      changeZoom(state.zoom - 10);
     });
     $("#zoomInBtn").on("click", function () {
-      state.zoom = Math.min(130, state.zoom + 10);
-      setZoom();
+      changeZoom(state.zoom + 10);
+    });
+    $("#zoomValue").on("click keydown", function (e) {
+      if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      changeZoom(100);
+    });
+    $(".canvas-stage").on("wheel.canvasZoom", function (e) {
+      let original = e.originalEvent;
+      if (!original || (!original.ctrlKey && !original.metaKey)) return;
+      e.preventDefault();
+      changeZoom(
+        state.zoom + (original.deltaY < 0 ? 10 : -10),
+        original,
+      );
     });
 
     let canvasDraggedId = null,
@@ -4880,7 +5008,7 @@
         $section = $target.closest(".lp-section");
       if (
         $target.closest(
-          ".canvas-movable,.canvas-resize-handle,.canvas-section-controls,[data-section-drag-handle],[data-viewport-resize]",
+          ".canvas-movable,.canvas-resize-handle,.canvas-section-controls,[data-section-drag-handle]",
         ).length
       )
         return;
@@ -5027,6 +5155,10 @@
         startHeight: startHeight,
         startRect: rect,
         startPosition: startPosition,
+        stableAnchors: captureStableElementAnchors(
+          [sectionId],
+          [{ sectionId: sectionId, key: key }],
+        ),
         ratio: startWidth / startHeight,
         scale: scale,
         pointerId: e.pointerId,
@@ -5172,6 +5304,7 @@
           positionY,
         ),
       );
+      restoreStableElementAnchors(resizeDrag.stableAnchors);
       $("#positionX").val(positionX);
       $("#positionY").val(positionY);
       positionResizeHandles(
@@ -6008,6 +6141,21 @@
         !$(".modal-backdrop:visible").length &&
         !$("#previewOverlay").is(":visible")
       ) {
+        if (shortcutKey === "0") {
+          e.preventDefault();
+          changeZoom(100);
+          return;
+        }
+        if (shortcutKey === "+" || shortcutKey === "=") {
+          e.preventDefault();
+          changeZoom(state.zoom + 10);
+          return;
+        }
+        if (shortcutKey === "-" || shortcutKey === "subtract") {
+          e.preventDefault();
+          changeZoom(state.zoom - 10);
+          return;
+        }
         if (shortcutKey === "c" && copySelectedElements()) {
           e.preventDefault();
           return;

@@ -50,6 +50,7 @@ button {
   background: rgba(255, 255, 255, 0.96);
   z-index: 20;
   flex: 0 0 auto;
+  gap : 15px;
 }
 .brand-area,
 .top-actions {
@@ -58,6 +59,8 @@ button {
 }
 .brand-area {
   gap: 10px;
+  flex: 0 0 auto;
+  margin-right : auto;
 }
 .brand-area h1 {
   margin: 0;
@@ -102,6 +105,65 @@ button {
 }
 .top-actions {
   gap: 10px;
+  flex: 0 0 auto;
+}
+.header-element-tools {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  width: max-content;
+  min-width: 0;
+  max-width: 760px;
+  height: 44px;
+  padding: 4px 6px;
+  border: 1px solid #ded9f8;
+  border-radius: 10px;
+  background: #faf8ff;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #cfc6f4 transparent;
+}
+.header-element-tools-label {
+  flex: 0 0 auto;
+  padding: 0 8px 0 4px;
+  color: #6841e8;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.header-align-actions,
+.header-multi-align-tools,
+.header-order-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+.header-multi-align-tools {
+  gap: 8px;
+}
+.header-order-actions {
+  padding-left: 8px;
+  border-left: 1px solid #ded9f8;
+}
+.header-align-actions button,
+.header-order-actions button {
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid #dedfe6;
+  border-radius: 7px;
+  background: #fff;
+  color: #555b66;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.header-align-actions button:hover,
+.header-order-actions button:hover {
+  border-color: #6c45e4;
+  background: #f1edff;
+  color: #6540dc;
 }
 .save-state {
   font-size: 14px;
@@ -673,6 +735,7 @@ button {
     0 20px 55px rgba(37, 43, 61, 0.18),
     inset 0 0 0 9px #fff;
   position: relative;
+  transform-origin: center top;
   transition:
     width 0.2s,
     height 0.2s,
@@ -681,52 +744,6 @@ button {
   height: auto;
   /* padding: 13px; */
   flex: 0 0 auto;
-}
-.viewport-resize-handle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  z-index: 10030;
-  width: 28px;
-  height: auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: ew-resize;
-  touch-action: none;
-}
-.viewport-resize-handle-left {
-  left: -14px;
-}
-.viewport-resize-handle-right {
-  right: -14px;
-}
-.viewport-resize-handle:after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 3px;
-  height: 54px;
-  border-radius: 999px;
-  background: #6841e8;
-  opacity: 0.22;
-  transform: translate(-50%, -50%);
-  transition: opacity 0.15s, height 0.15s;
-}
-.viewport-resize-handle:hover:after,
-.viewport-resize-handle:focus-visible:after,
-.viewport-resizing .viewport-resize-handle:after {
-  height: 76px;
-  opacity: 0.9;
-}
-.viewport-resizing,
-.viewport-resizing * {
-  cursor: ew-resize !important;
-  user-select: none !important;
-}
-.viewport-resizing .device-frame {
-  transition: none;
 }
 .device-screen {
   width: 100%;
@@ -769,6 +786,13 @@ button {
   color: #777d87;
   min-width: 55px;
   text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+.zoom-bar span:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #6841e8;
+  outline-offset: -2px;
 }
 .right-tabs {
   height: 66px;
@@ -886,6 +910,10 @@ button {
   cursor: default;
   background: #f0f1f4;
   color: #656b78;
+}
+.dynamic-text-input {
+  min-height: 58px;
+  line-height: 1.45;
 }
 #imageControlGroup.editor-element-selected {
   outline: 2px solid #805ef0;
@@ -1256,18 +1284,6 @@ select:focus {
   font-size: 10px;
   line-height: 1.45;
 }
-.line-order-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px;
-  margin-top: 8px;
-}
-.line-order-reverse-button {
-  width: 100%;
-  height: 36px;
-  font-size: 11px;
-  font-weight: 800;
-}
 .position-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1602,6 +1618,7 @@ select:focus {
 }
 .lp-positioned {
   position: relative;
+  z-index: 1;
 }
 .canvas-movable {
   cursor: grab;
@@ -1710,7 +1727,7 @@ select:focus {
   justify-content: center;
   color: #fff;
   text-align: center;
-  overflow: hidden;
+  overflow: visible;
 }
 .lp-hero-background {
   position: absolute;
@@ -1785,6 +1802,13 @@ img.lp-hero-background {
   margin: calc(10px * var(--responsive-scale)) 0 calc(17px * var(--responsive-scale));
   line-height: 1.5;
 }
+.lp-eyebrow,
+.lp-title,
+.lp-subtitle,
+.lp-footer-text,
+.lp-generic-text {
+  white-space: pre-wrap;
+}
 .lp-button {
   display: inline-flex;
   align-items: center;
@@ -1819,7 +1843,7 @@ img.lp-hero-background {
   width: calc(22px * var(--responsive-scale));
   height: calc(22px * var(--responsive-scale));
   flex: 0 0 auto;
-  object-fit: contain;
+  object-fit: fill;
 }
 .lp-button-background-image {
   position: absolute;
@@ -1829,7 +1853,7 @@ img.lp-hero-background {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  object-fit: cover;
+  object-fit: fill;
   pointer-events: none;
 }
 .lp-button > .lp-button-image,
@@ -2001,7 +2025,7 @@ img.lp-hero-background {
 .lp-feature-extras .lp-element-image {
   width: 100%;
   max-height: 160px;
-  object-fit: cover;
+  object-fit: fill;
   border-radius: 8px;
 }
 .lp-content {
@@ -2020,7 +2044,7 @@ img.lp-hero-background {
 .lp-extra-image {
   width: calc(64px * var(--responsive-scale));
   height: calc(64px * var(--responsive-scale));
-  object-fit: contain;
+  object-fit: fill;
 }
 .lp-content .lp-eyebrow {
   font-size: calc(11px * var(--responsive-scale));
@@ -2112,7 +2136,7 @@ img.lp-hero-background {
   max-height: 180px;
   margin: 0 auto 14px;
   border-radius: 8px;
-  object-fit: cover;
+  object-fit: fill;
 }
 .lp-footer {
   padding: calc(18px * var(--responsive-scale));
@@ -2129,7 +2153,7 @@ img.lp-hero-background {
   width: calc(54px * var(--responsive-scale));
   height: calc(54px * var(--responsive-scale));
   margin: 0 auto calc(10px * var(--responsive-scale));
-  object-fit: contain;
+  object-fit: fill;
 }
 .lp-image-only > .lp-element-image {
   display: block;
@@ -2161,7 +2185,7 @@ img.lp-hero-background {
   width: 100%;
   max-height: 180px;
   margin: 0 auto 10px;
-  object-fit: cover;
+  object-fit: fill;
 }
 .modal-backdrop {
   position: fixed;

@@ -124,6 +124,7 @@
     s.extraButtons = [];
     s.extraImages = [];
     s.extraShapes = [];
+    s.elementGroups = [];
     s.positions = {};
     s.elementStyles = {};
     s.customStyle = {
@@ -205,6 +206,7 @@
     future: [],
   };
   let elementClipboard = null;
+  let elementContextTarget = null;
   function currentTemplate() {
     return state.templates[state.activeTemplate];
   }
@@ -395,6 +397,157 @@
   function isElementSelected(sectionId, key) {
     return selectionIndex(sectionId, key) >= 0;
   }
+  function elementGroupForKey(section, key) {
+    if (!section) return null;
+    return (section.elementGroups || []).find(function (group) {
+      return (
+        group &&
+        Array.isArray(group.keys) &&
+        group.keys.some(function (groupKey) {
+          return String(groupKey) === String(key);
+        })
+      );
+    }) || null;
+  }
+  function groupSelectionItems(section, key) {
+    let group = elementGroupForKey(section, key),
+      keys = group && Array.isArray(group.keys) ? group.keys : [key];
+    return keys.map(function (groupKey) {
+      return { sectionId: section.id, key: groupKey };
+    });
+  }
+  function expandSelectionGroups(selection) {
+    let sections = currentTemplate().sections,
+      expanded = [];
+    (selection || []).forEach(function (item) {
+      let section = sections.find(function (candidate) {
+          return String(candidate.id) === String(item.sectionId);
+        }),
+        items = section
+          ? groupSelectionItems(section, item.key)
+          : [item];
+      items.forEach(function (candidate) {
+        if (
+          !expanded.some(function (existing) {
+            return (
+              String(existing.sectionId) === String(candidate.sectionId) &&
+              String(existing.key) === String(candidate.key)
+            );
+          })
+        )
+          expanded.push(candidate);
+      });
+    });
+    return expanded;
+  }
+  function removeGroupKeys(section, keys) {
+    if (!section || !Array.isArray(section.elementGroups)) return;
+    let removed = (keys || []).map(String);
+    section.elementGroups = section.elementGroups
+      .map(function (group) {
+        return {
+          id: group.id,
+          keys: (group.keys || []).filter(function (key) {
+            return removed.indexOf(String(key)) < 0;
+          }),
+        };
+      })
+      .filter(function (group) {
+        return group.keys.length >= 2;
+      });
+  }
+  function normalizeElementGroups(section) {
+    if (!section || !Array.isArray(section.elementGroups)) {
+      if (section) section.elementGroups = [];
+      return;
+    }
+    let validKeys = availableMoveKeys(section).map(String),
+      claimedKeys = [];
+    section.elementGroups = section.elementGroups
+      .map(function (group) {
+        let keys = (group.keys || [])
+          .map(String)
+          .filter(function (key, index, values) {
+            return (
+              validKeys.indexOf(key) >= 0 &&
+              claimedKeys.indexOf(key) < 0 &&
+              values.indexOf(key) === index
+            );
+          });
+        keys.forEach(function (key) {
+          claimedKeys.push(key);
+        });
+        return { id: group.id || uid("group"), keys: keys };
+      })
+      .filter(function (group) {
+        return group.keys.length >= 2;
+      });
+  }
+  function hideElementContextMenu() {
+    $("#elementContextMenu").prop("hidden", true);
+    elementContextTarget = null;
+  }
+  function alignElementGroup(section, group, mode) {
+    if (!section || !group || !Array.isArray(group.keys)) return false;
+    let entries = group.keys
+        .map(function (key) {
+          let node = null;
+          $("#deviceScreen .canvas-movable").each(function () {
+            let $node = $(this);
+            if (
+              String($node.closest(".lp-section").data("section-id")) ===
+                String(section.id) &&
+              String($node.data("move-key")) === String(key)
+            )
+              node = this;
+          });
+          return node ? { key: key, node: node } : null;
+        })
+        .filter(Boolean),
+      frame = $("#deviceFrame")[0];
+    if (entries.length < 2 || !frame) return false;
+    let frameRect = frame.getBoundingClientRect(),
+      scale = frame.offsetWidth ? frameRect.width / frame.offsetWidth : 1;
+    scale = scale || 1;
+    let rects = entries.map(function (entry) {
+        return entry.node.getBoundingClientRect();
+      }),
+      groupLeft = Math.min.apply(
+        null,
+        rects.map(function (rect) {
+          return rect.left;
+        }),
+      ),
+      groupRight = Math.max.apply(
+        null,
+        rects.map(function (rect) {
+          return rect.right;
+        }),
+      ),
+      target =
+        mode === "left"
+          ? groupLeft
+          : mode === "right"
+            ? groupRight
+            : (groupLeft + groupRight) / 2;
+    entries.forEach(function (entry, index) {
+      let rect = rects[index],
+        current =
+          mode === "left"
+            ? rect.left
+            : mode === "right"
+              ? rect.right
+              : rect.left + rect.width / 2,
+        position = getPosition(section, entry.key);
+      setPosition(
+        section,
+        entry.key,
+        position.x + (target - current) / scale,
+        position.y,
+      );
+    });
+    return true;
+  }
   function syncPrimarySelection(fallbackSectionId) {
     let last = state.selectedElements[state.selectedElements.length - 1];
     state.selectedSectionId = last
@@ -545,6 +698,7 @@
       Number(s.workspaceSetupVersion) || DEFAULT_WORKSPACE_SETUP_VERSION;
     migrateSectionStructures();
     ensureMinimumEditorElements();
+    state.selectedElements = expandSelectionGroups(state.selectedElements);
     if (
       !currentTemplate().sections.some(function (section) {
         return section.id === state.selectedSectionId;
@@ -1190,6 +1344,7 @@
         template.workspaceNameEditableVersion = 1;
       }
       (template.sections || []).forEach(function (section) {
+        normalizeElementGroups(section);
         if (section.type === "hero") section.name = "히어로(상단)";
         else if (section.type === "section") section.name = "섹션(중단)";
         else if (section.type === "footer") section.name = "푸터(하단)";
@@ -1694,9 +1849,11 @@
         (parseFloat(stageStyle.paddingTop) || 0) +
         (parseFloat(stageStyle.paddingBottom) || 0),
       availableHeight = Math.max(0, stage.clientHeight - verticalPadding),
+      viewportScale = Math.max(0.01, clampZoom(state.zoom) / 100),
+      visibleViewportHeight = availableHeight / viewportScale,
       contentHeight = Math.max(1, Math.ceil(page.scrollHeight)),
       frameHeight = availableHeight
-        ? Math.min(contentHeight, availableHeight)
+        ? Math.min(contentHeight, visibleViewportHeight)
         : contentHeight;
     frame.style.height = Math.max(1, frameHeight) + "px";
   }
@@ -1704,6 +1861,7 @@
     let t = currentTemplate(),
       html = '<div class="lp-page" style="' + pageStyle(t) + '">';
     $.each(t.sections, function (_, s) {
+      normalizeElementGroups(s);
       html += renderSection(s, s.id === state.selectedSectionId, false);
     });
     html += "</div>";
@@ -2708,7 +2866,10 @@
     $("#zoomValue").text(state.zoom + "%");
     $("#zoomOutBtn").prop("disabled", state.zoom <= MIN_CANVAS_ZOOM);
     $("#zoomInBtn").prop("disabled", state.zoom >= MAX_CANVAS_ZOOM);
-    requestAnimationFrame(renderResizeHandle);
+    requestAnimationFrame(function () {
+      fitDeviceFrameHeight();
+      renderResizeHandle();
+    });
   }
   function clampZoom(value) {
     return Math.max(
@@ -2808,6 +2969,26 @@
   function shiftIndexedElementData(s, prefix, removedIndex, oldLength) {
     s.positions = s.positions || {};
     s.elementStyles = s.elementStyles || {};
+    if (Array.isArray(s.elementGroups)) {
+      s.elementGroups = s.elementGroups
+        .map(function (group) {
+          let keys = (group.keys || [])
+            .map(function (key) {
+              let match = String(key).match(
+                new RegExp("^" + prefix + "(\\d+)$"),
+              );
+              if (!match) return key;
+              let index = Number(match[1]);
+              if (index === removedIndex) return null;
+              return index > removedIndex ? prefix + (index - 1) : key;
+            })
+            .filter(Boolean);
+          return { id: group.id, keys: keys };
+        })
+        .filter(function (group) {
+          return group.keys.length >= 2;
+        });
+    }
     for (let i = removedIndex + 1; i < oldLength; i++) {
       let from = prefix + i,
         to = prefix + (i - 1);
@@ -2827,6 +3008,7 @@
       })
     )
       return;
+    removeGroupKeys(s, [key]);
     let isLast = sectionTextFields(s).length <= 1;
     resetElementData(s, key);
     if (isLast) {
@@ -2855,6 +3037,7 @@
       return item.key === key;
     });
     if (!button) return;
+    removeGroupKeys(s, [key]);
     let index = button.index,
       isLast = sectionButtons(s).length <= 1;
     resetElementData(s, key);
@@ -2891,6 +3074,7 @@
     let index = Number(key.replace("extraImage", "")),
       oldLength = (s.extraImages || []).length;
     if (!Number.isInteger(index) || index < 0 || index >= oldLength) return;
+    removeGroupKeys(s, [key]);
     resetElementData(s, key);
     s.extraImages.splice(index, 1);
     shiftIndexedElementData(s, "extraImage", index, oldLength);
@@ -2899,6 +3083,7 @@
     let index = Number(key.replace("shape", "")),
       oldLength = (s.extraShapes || []).length;
     if (!Number.isInteger(index) || index < 0 || index >= oldLength) return;
+    removeGroupKeys(s, [key]);
     resetElementData(s, key);
     s.extraShapes.splice(index, 1);
     shiftIndexedElementData(s, "shape", index, oldLength);
@@ -2991,6 +3176,7 @@
           });
         if (keys.indexOf("image") >= 0) {
           s.image = "";
+          removeGroupKeys(s, ["image"]);
           resetElementData(s, "image");
         }
         keys
@@ -4786,6 +4972,128 @@
       markChanged();
     });
 
+    $("#deviceScreen").on("contextmenu", ".canvas-movable", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      let $element = $(this),
+        sectionId = $element.closest(".lp-section").data("section-id"),
+        key = $element.data("move-key"),
+        section = currentTemplate().sections.find(function (item) {
+          return String(item.id) === String(sectionId);
+        });
+      if (!section) return;
+      let group = elementGroupForKey(section, key);
+      if (!isElementSelected(sectionId, key)) {
+        state.selectedElements = groupSelectionItems(section, key);
+        syncPrimarySelection(sectionId);
+        syncElementSelectionClasses();
+        renderSectionList();
+        renderEditor();
+        renderStyle();
+        renderResizeHandle();
+      } else {
+        state.selectedElements = expandSelectionGroups(state.selectedElements);
+        syncPrimarySelection(sectionId);
+        syncElementSelectionClasses();
+      }
+      let selectedInSection = state.selectedElements.filter(function (item) {
+          return String(item.sectionId) === String(sectionId);
+        }),
+        allInSameSection =
+          selectedInSection.length === state.selectedElements.length,
+        canGroup = !group && allInSameSection && selectedInSection.length >= 2,
+        canUngroup = !!group;
+      if (!canGroup && !canUngroup) {
+        hideElementContextMenu();
+        return;
+      }
+      elementContextTarget = canUngroup
+        ? { sectionId: sectionId, groupId: group.id }
+        : {
+            sectionId: sectionId,
+            keys: selectedInSection.map(function (item) {
+              return item.key;
+            }),
+          };
+      let $menu = $("#elementContextMenu"),
+        left = Math.min(e.clientX, window.innerWidth - 150),
+        top = Math.min(e.clientY, window.innerHeight - 92);
+      $menu
+        .find('[data-element-context-action="group"]')
+        .toggle(canGroup);
+      $menu
+        .find('[data-element-context-action="ungroup"]')
+        .toggle(canUngroup);
+      $menu.find("[data-group-align-menu]").toggle(canUngroup);
+      $menu
+        .css({ left: Math.max(8, left), top: Math.max(8, top) })
+        .prop("hidden", false);
+    });
+    $("#elementContextMenu").on(
+      "click",
+      "[data-element-context-action]",
+      function () {
+        if (!elementContextTarget) return;
+        let action = String($(this).data("element-context-action") || ""),
+          target = elementContextTarget,
+          section = currentTemplate().sections.find(function (item) {
+            return String(item.id) === String(target.sectionId);
+          });
+        if (!section) {
+          hideElementContextMenu();
+          return;
+        }
+        pushHistory();
+        if (action === "group") {
+          let keys = (target.keys || []).filter(function (key, index, values) {
+            return values.indexOf(key) === index;
+          });
+          removeGroupKeys(section, keys);
+          section.elementGroups = section.elementGroups || [];
+          section.elementGroups.push({ id: uid("group"), keys: keys });
+          toast(keys.length + "개 요소를 그룹으로 묶었습니다.");
+        } else if (action === "ungroup") {
+          section.elementGroups = (section.elementGroups || []).filter(
+            function (group) {
+              return String(group.id) !== String(target.groupId);
+            },
+          );
+          toast("그룹을 해제했습니다.");
+        } else if (/^group-align-(left|center|right)$/.test(action)) {
+          let group = (section.elementGroups || []).find(function (item) {
+              return String(item.id) === String(target.groupId);
+            }),
+            mode = action.replace("group-align-", "");
+          if (!alignElementGroup(section, group, mode)) {
+            state.history.pop();
+            updateUndoRedo();
+            hideElementContextMenu();
+            return;
+          }
+          toast(
+            "그룹 내부 요소를 " +
+              { left: "왼쪽", center: "가운데", right: "오른쪽" }[mode] +
+              "으로 정렬했습니다.",
+          );
+        } else {
+          state.history.pop();
+          updateUndoRedo();
+          hideElementContextMenu();
+          return;
+        }
+        hideElementContextMenu();
+        renderPage();
+        renderEditor();
+        renderStyle();
+        markChanged();
+      },
+    );
+    $(document).on("pointerdown.elementContextMenu", function (e) {
+      if (!$(e.target).closest("#elementContextMenu").length)
+        hideElementContextMenu();
+    });
+    $(window).on("blur resize scroll", hideElementContextMenu);
+
     let directDrag = null;
     $("#deviceScreen").on("pointerdown", ".canvas-movable", function (e) {
       if (e.button !== undefined && e.button !== 0) return;
@@ -4799,17 +5107,25 @@
         return item.id === sectionId;
       });
       if (!s) return;
-      let additive = e.ctrlKey || e.metaKey,
+      let groupItems = groupSelectionItems(s, key),
+        grouped = groupItems.length > 1,
+        groupSelected = groupItems.every(function (item) {
+          return isElementSelected(item.sectionId, item.key);
+        }),
+        additive = e.ctrlKey || e.metaKey,
         index = selectionIndex(sectionId, key),
-        pendingToggle = additive && index >= 0;
-      if (additive && index < 0)
-        state.selectedElements.push({ sectionId: sectionId, key: key });
+        pendingToggle = additive && groupSelected;
+      if (additive && !groupSelected)
+        state.selectedElements = expandSelectionGroups(
+          state.selectedElements.concat(groupItems),
+        );
       if (!additive) {
-        if (index < 0)
-          state.selectedElements = [{ sectionId: sectionId, key: key }];
+        if (!groupSelected)
+          state.selectedElements = groupItems.slice();
         else {
-          state.selectedElements.splice(index, 1);
+          if (index >= 0) state.selectedElements.splice(index, 1);
           state.selectedElements.push({ sectionId: sectionId, key: key });
+          state.selectedElements = expandSelectionGroups(state.selectedElements);
         }
       }
       state.selectedSectionId = sectionId;
@@ -4877,6 +5193,8 @@
         axisLock: null,
         pendingToggle: pendingToggle,
         additive: additive,
+        grouped: grouped,
+        groupItems: groupItems,
       };
       try {
         this.setPointerCapture(e.pointerId);
@@ -4940,7 +5258,11 @@
       function () {
         if (!directDrag) return;
         if (directDrag.moved) markChanged();
-        else if (!directDrag.additive && state.selectedElements.length > 1) {
+        else if (
+          !directDrag.additive &&
+          !directDrag.grouped &&
+          state.selectedElements.length > 1
+        ) {
           state.selectedElements = [
             { sectionId: directDrag.sectionId, key: directDrag.key },
           ];
@@ -4951,8 +5273,15 @@
           renderEditor();
           renderStyle();
         } else if (directDrag.pendingToggle) {
-          let index = selectionIndex(directDrag.sectionId, directDrag.key);
-          if (index >= 0) state.selectedElements.splice(index, 1);
+          let removeKeys = directDrag.groupItems.map(function (item) {
+            return String(item.key);
+          });
+          state.selectedElements = state.selectedElements.filter(function (item) {
+            return !(
+              String(item.sectionId) === String(directDrag.sectionId) &&
+              removeKeys.indexOf(String(item.key)) >= 0
+            );
+          });
           syncPrimarySelection(directDrag.sectionId);
           syncElementSelectionClasses();
           renderSectionList();
@@ -5045,7 +5374,7 @@
         });
         if (!exists) selection.push(item);
       });
-      state.selectedElements = selection;
+      state.selectedElements = expandSelectionGroups(selection);
       syncPrimarySelection(marqueeDrag.sectionId);
       syncElementSelectionClasses();
     });

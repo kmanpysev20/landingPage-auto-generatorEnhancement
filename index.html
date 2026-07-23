@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>랜딩페이지 생성기</title>
-  <link rel="stylesheet" href="css/style.css?v=20260723-96">
+  <link rel="stylesheet" href="css/style.css?v=20260723-102">
   <script defer src="js/jquery-3.7.1.min.js"></script>
-  <script defer src="js/translation.js?v=20260723-96"></script>
-  <script defer src="js/app.js?v=20260723-96"></script>
+  <script defer src="js/translation.js?v=20260723-102"></script>
+  <script defer src="js/app.js?v=20260723-102"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -413,6 +413,14 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="element-context-menu" id="elementContextMenu" role="menu" hidden>
+    <button type="button" data-element-context-action="group" role="menuitem">그룹 만들기</button>
+    <div class="element-context-menu-label" data-group-align-menu>그룹 내부 정렬</div>
+    <button type="button" data-element-context-action="group-align-left" data-group-align-menu role="menuitem">왼쪽 정렬</button>
+    <button type="button" data-element-context-action="group-align-center" data-group-align-menu role="menuitem">가운데 정렬</button>
+    <button type="button" data-element-context-action="group-align-right" data-group-align-menu role="menuitem">오른쪽 정렬</button>
+    <button type="button" data-element-context-action="ungroup" role="menuitem">그룹 해제</button>
+  </div>
 
 </body>
 

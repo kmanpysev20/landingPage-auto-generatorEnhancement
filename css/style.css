@@ -689,7 +689,6 @@ button {
   align-items: center;
   justify-content: center;
   padding: 54px 24px 66px;
-  overflow: auto;
   justify-content: safe center;
   align-items: safe center;
   cursor: crosshair;
@@ -1678,6 +1677,47 @@ select:focus {
   border-radius: 3px;
   background: rgba(104, 65, 232, 0.14);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75) inset;
+}
+.element-context-menu {
+  position: fixed;
+  z-index: 10100;
+  min-width: 132px;
+  padding: 6px;
+  border: 1px solid #ddd8ef;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(31, 24, 55, 0.18);
+}
+.element-context-menu[hidden] {
+  display: none;
+}
+.element-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #34303f;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+.element-context-menu button:hover,
+.element-context-menu button:focus-visible {
+  background: #f3efff;
+  color: #623fe1;
+  outline: none;
+}
+.element-context-menu-label {
+  margin: 3px 6px 4px;
+  padding-top: 7px;
+  border-top: 1px solid #eeeaf7;
+  color: #8a8498;
+  font-size: 11px;
+  font-weight: 700;
 }
 .marquee-selecting,
 .marquee-selecting * {

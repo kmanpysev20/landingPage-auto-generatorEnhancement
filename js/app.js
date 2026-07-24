@@ -1632,6 +1632,8 @@
   function updateSectionButton(index, field, value) {
     let s = currentSection();
     if (!s) return;
+    let editedKey = index === 0 ? "button" : "button" + index,
+      stableAnchors = captureSectionMutationAnchors(s, [editedKey]);
     if (index === 0) {
       if (field === "text") s.buttonText = value;
       else if (field === "image") s.buttonImage = value;
@@ -1652,10 +1654,11 @@
     if (field === "text" && translationController)
       translationController.recordEdit(
         s,
-        index === 0 ? "button" : "button" + index,
+        editedKey,
         value,
       );
     renderPage();
+    restoreSectionMutationAnchors(stableAnchors);
     markChanged();
   }
   function renderButtonContent(button) {
@@ -2024,7 +2027,8 @@
   function updateSectionText(key, value) {
     let s = currentSection();
     if (!s || !key) return;
-    let previousValue = "";
+    let stableAnchors = captureSectionMutationAnchors(s, [key]),
+      previousValue = "";
     if (/^feature/.test(key)) {
       s.items = s.items || [];
       previousValue = s.items[Number(key.replace("feature", ""))] || "";
@@ -2061,6 +2065,7 @@
       state.selectedElements = [{ sectionId: s.id, key: key }];
     }
     renderPage();
+    restoreSectionMutationAnchors(stableAnchors);
     renderSectionList();
     if (becameVisible) {
       renderEditorSelectionHighlight(s);
@@ -3017,6 +3022,21 @@
       setPosition(section, anchor.key, x, y);
       $(node).css("transform", elementTransform(section, anchor.key, x, y));
     });
+  }
+  function captureSectionMutationAnchors(section, excludedKeys) {
+    if (!section) return [];
+    return captureStableElementAnchors(
+      [section.id],
+      (excludedKeys || []).map(function (key) {
+        return { sectionId: section.id, key: key };
+      }),
+      true,
+    );
+  }
+  function restoreSectionMutationAnchors(anchors) {
+    if (!anchors || !anchors.length) return;
+    restoreStableElementAnchors(anchors);
+    renderResizeHandle();
   }
   function freezeFittedImagesBeforeElementDeletion(anchors) {
     (anchors || []).forEach(function (anchor) {
@@ -4740,6 +4760,7 @@
       let s = currentSection();
       if (!s) return;
       let textType = String($(this).data("text-type") || "normal"),
+        stableAnchors = captureSectionMutationAnchors(s),
         initialValue =
           textType === "srno"
             ? "<%=no%>"
@@ -4757,6 +4778,7 @@
         s.elementStyles = s.elementStyles || {};
         s.elementStyles[key] = { color: DEFAULT_TEXT_COLOR };
       });
+      restoreSectionMutationAnchors(stableAnchors);
       $("#textTypeModal").prop("hidden", true);
     });
     $("#textFieldsList").on("click", "[data-remove-text-key]", function () {
@@ -4793,6 +4815,7 @@
       let s = currentSection();
       if (!s) return;
       let buttonType = String($(this).data("button-type") || "normal"),
+        stableAnchors = captureSectionMutationAnchors(s),
         buttonText = buttonType === "product" ? "상품 버튼" : "새 버튼",
         buttonImage =
           buttonType === "product" ? DEFAULT_PRODUCT_BUTTON_IMAGE : "";
@@ -4819,6 +4842,7 @@
           });
         }
       });
+      restoreSectionMutationAnchors(stableAnchors);
       $("#buttonTypeModal").prop("hidden", true);
     });
     $(document).on("click", "[data-add-shape-type]", function () {

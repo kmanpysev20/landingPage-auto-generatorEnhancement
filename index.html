@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>랜딩페이지 생성기</title>
-  <link rel="stylesheet" href="css/style.css?v=20260724-109">
+  <link rel="stylesheet" href="css/style.css?v=20260724-116">
   <script defer src="js/jquery-3.7.1.min.js"></script>
-  <script defer src="js/translation.js?v=20260724-109"></script>
-  <script defer src="js/app.js?v=20260724-109"></script>
+  <script defer src="js/translation.js?v=20260724-116"></script>
+  <script defer src="js/app.js?v=20260724-116"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -137,11 +137,12 @@
               </div>
             </section>
 
-            <section class="control-group" id="imageControlGroup" data-editor-key="image">
+            <section class="control-group" id="imageControlGroup">
               <div class="element-subheading-row image-heading-row">
                 <h3 id="imageControlTitle">이미지</h3>
                 <button type="button" class="element-add-button" id="addImageElementBtn">＋ 이미지 추가</button>
               </div>
+              <div class="element-field-card primary-image-field-card" data-editor-key="image">
               <div class="element-field-head image-primary-field-head">
                 <h4 class="image-field-title">이미지 1</h4>
                 <button type="button" class="element-duplicate-button" id="duplicatePrimaryImageBtn" data-duplicate-editor-key="image">복제</button>
@@ -160,9 +161,11 @@
                 <button type="button" class="text-button image-brightness-reset" id="resetImageBrightnessBtn">초기화</button>
               </div>
               <div class="image-size-control" id="imageSizeControl">
-                <label class="style-number-field">이미지 높이<input type="number" id="imageHeight" min="20" max="3000" step="1" placeholder="자동"><span>px</span></label>
+                <label class="style-number-field">이미지 가로<input type="number" id="imageWidth" min="20" max="3000" step="1" placeholder="자동"><span>px</span></label>
+                <label class="style-number-field">이미지 세로<input type="number" id="imageHeight" min="20" max="3000" step="1" placeholder="자동"><span>px</span></label>
                 <label class="image-fit-check"><input type="checkbox" id="imageFitSectionHeight"><span>부모 영역 높이에 맞춤</span></label>
                 <p>체크하면 이미지를 섹션의 남은 높이에 맞추고 넘치는 부분은 잘라냅니다.</p>
+              </div>
               </div>
               <div class="element-fields-list extra-image-fields-list" id="extraImageFieldsList"></div>
             </section>

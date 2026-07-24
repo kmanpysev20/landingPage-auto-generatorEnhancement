@@ -126,6 +126,7 @@
     s.extraShapes = [];
     s.elementGroups = [];
     s.extraImageWidthVersion = 2;
+    s.primaryImageStyleVersion = 1;
     s.positions = {};
     s.elementStyles = {};
     s.customStyle = {
@@ -504,6 +505,40 @@
     });
     section.extraImageWidthVersion = 2;
   }
+  function migratePrimaryImageStyle(section) {
+    if (!section || section.primaryImageStyleVersion === 1) return;
+    section.elementStyles = section.elementStyles || {};
+    let style =
+      section.elementStyles.image || (section.elementStyles.image = {});
+    if (style.brightness === undefined && section.imageBrightness !== undefined)
+      style.brightness = Number(section.imageBrightness) || 100;
+    if (style.width === undefined && section.imageWidth !== undefined)
+      style.width = Math.max(20, Number(section.imageWidth) || 20);
+    if (style.height === undefined && section.imageHeight !== undefined)
+      style.height = Math.max(20, Number(section.imageHeight) || 20);
+    if (
+      style.fitSectionHeight === undefined &&
+      section.imageFitSectionHeight !== undefined
+    )
+      style.fitSectionHeight = !!section.imageFitSectionHeight;
+    if (section.type === "hero" && section.image) {
+      if (style.width === undefined) style.width = RESPONSIVE_BASE_WIDTH;
+      if (style.height === undefined) {
+        let sectionHeight = Number(
+          section.customStyle && section.customStyle.height !== undefined
+            ? section.customStyle.height
+            : section.responsiveBaseHeight,
+        );
+        if (Number.isFinite(sectionHeight)) style.height = sectionHeight;
+      }
+      if (style.fitSectionHeight === undefined) style.fitSectionHeight = true;
+    }
+    delete section.imageBrightness;
+    delete section.imageWidth;
+    delete section.imageHeight;
+    delete section.imageFitSectionHeight;
+    section.primaryImageStyleVersion = 1;
+  }
   function hideElementContextMenu() {
     $("#elementContextMenu").prop("hidden", true);
     elementContextTarget = null;
@@ -742,16 +777,11 @@
       targetHeight =
         Math.round(targetWidth * (currentHeight / currentWidth) * 100) / 100;
     }
-    if (key === "image") {
-      section.imageFitSectionHeight = false;
-      section.imageWidth = targetWidth;
-      section.imageHeight = targetHeight;
-    } else {
-      section.elementStyles = section.elementStyles || {};
-      style = section.elementStyles[key] || (section.elementStyles[key] = {});
-      style.width = targetWidth;
-      style.height = targetHeight;
-    }
+    section.elementStyles = section.elementStyles || {};
+    style = section.elementStyles[key] || (section.elementStyles[key] = {});
+    style.width = targetWidth;
+    style.height = targetHeight;
+    if (axis === "vertical") style.fitSectionHeight = true;
     setPosition(
       section,
       key,
@@ -1483,6 +1513,7 @@
       (template.sections || []).forEach(function (section) {
         normalizeElementGroups(section);
         migrateExtraImageWidths(section);
+        migratePrimaryImageStyle(section);
         if (section.type === "hero") section.name = "히어로(상단)";
         else if (section.type === "section") section.name = "섹션(중단)";
         else if (section.type === "footer") section.name = "푸터(하단)";
@@ -1685,26 +1716,18 @@
     return html ? '<div class="lp-buttons">' + html + "</div>" : "";
   }
   function renderInlineImage(s, className, exportMode) {
-    let brightness =
-      s.imageBrightness === undefined ? 100 : Number(s.imageBrightness) || 100;
     let imageStyle = (s.elementStyles && s.elementStyles.image) || {};
-    let sizeCss = "";
-    if (!s.imageFitSectionHeight) {
-      if (s.imageWidth !== undefined)
-        sizeCss +=
-          "width:" + responsivePx(Math.max(20, Number(s.imageWidth) || 20)) +
-          ";max-width:none;";
-      if (s.imageHeight !== undefined)
-        sizeCss +=
-          "height:" + responsivePx(Math.max(20, Number(s.imageHeight) || 20)) +
-          ";max-height:none;";
-    }
-    let filterCss =
-      "filter:brightness(" +
-      brightness +
-      "%)" +
-      (imageStyle.invertColors ? " invert(1)" : "") +
-      ";";
+    let fitHeight = Number(
+        s.customStyle && s.customStyle.height !== undefined
+          ? s.customStyle.height
+          : s.responsiveBaseHeight,
+      ),
+      fitCss =
+        imageStyle.fitSectionHeight && Number.isFinite(fitHeight)
+          ? "height:" +
+            responsivePx(Math.max(20, fitHeight)) +
+            ";"
+          : "";
     return s.image
       ? "<img" +
           movableAttrs(
@@ -1712,7 +1735,7 @@
             "image",
             className || "lp-element-image",
             exportMode,
-            filterCss + sizeCss,
+            fitCss,
           ) +
           ' src="' +
           safeText(s.image) +
@@ -1764,13 +1787,27 @@
   function renderExtraImages(s, exportMode) {
     let html = "";
     (s.extraImages || []).forEach(function (src, index) {
-      if (src)
+      if (src) {
+        let key = "extraImage" + index,
+          style = (s.elementStyles && s.elementStyles[key]) || {},
+          fitHeight = Number(
+            s.customStyle && s.customStyle.height !== undefined
+              ? s.customStyle.height
+              : s.responsiveBaseHeight,
+          ),
+          fitCss =
+            style.fitSectionHeight && Number.isFinite(fitHeight)
+              ? "height:" +
+                responsivePx(Math.max(20, fitHeight)) +
+                ";"
+              : "";
         html +=
           "<img" +
-          movableAttrs(s, "extraImage" + index, "lp-extra-image", exportMode) +
+          movableAttrs(s, key, "lp-extra-image", exportMode, fitCss) +
           ' src="' +
           safeText(src) +
           '" alt="">';
+      }
     });
     return html ? '<div class="lp-extra-images">' + html + "</div>" : "";
   }
@@ -1794,91 +1831,33 @@
     return html ? '<div class="lp-shapes">' + html + "</div>" : "";
   }
   function renderSection(s, selected, exportMode) {
+    let primaryImageStyle =
+      (s.elementStyles && s.elementStyles.image) || {};
     let cls =
       "lp-section " +
       (selected ? "selected " : "") +
       (s.visible === false ? "hidden-section " : "") +
-      (s.imageFitSectionHeight ? "image-fit-section " : "");
+      (primaryImageStyle.fitSectionHeight ? "image-fit-section " : "");
     let img = s.image || "",
       controls = sectionControls(s, exportMode);
     if (s.type === "hero") {
-      let brightness =
-        s.imageBrightness === undefined
-          ? 100
-          : Number(s.imageBrightness) || 100;
       let sectionGradient =
         s.customStyle && s.customStyle.gradientEnabled
           ? gradientCss(s.customStyle)
+          : "",
+        gradientLayer = sectionGradient
+          ? '<div class="lp-hero-gradient" style="background-image:' +
+            safeAttr(sectionGradient) +
+            '"></div>'
           : "";
-      if (exportMode === "jsp" && img) {
-        let jspBackground =
-            '<img class="lp-hero-background" src="' +
-            safeAttr(img) +
-            '" alt="" style="filter:brightness(' +
-            brightness +
-            '%)">',
-          jspGradient = sectionGradient
-            ? '<div class="lp-hero-gradient" style="background-image:' +
-              safeAttr(sectionGradient) +
-              '"></div>'
-            : "";
-        return (
-          '<section class="' +
-          cls +
-          'lp-hero"' +
-          sectionAttrs(s, exportMode) +
-          ">" +
-          jspBackground +
-          jspGradient +
-          controls +
-          '<div class="lp-hero-content">' +
-          renderExtraShapes(s, exportMode) +
-          renderExtraImages(s, exportMode) +
-          (isTextAvailable(s, "eyebrow")
-            ? "<div" +
-              movableAttrs(s, "eyebrow", "lp-eyebrow", exportMode) +
-              ">" +
-              safeText(s.eyebrow || "") +
-              "</div>"
-            : "") +
-          (isTextAvailable(s, "title")
-            ? "<h2" +
-              movableAttrs(s, "title", "lp-title", exportMode) +
-              ">" +
-              safeText(s.title || "") +
-              "</h2>"
-            : "") +
-          (isTextAvailable(s, "subtitle")
-            ? "<p" +
-              movableAttrs(s, "subtitle", "lp-subtitle", exportMode) +
-              ">" +
-              safeText(s.subtitle || "") +
-              "</p>"
-            : "") +
-          renderExtraTexts(s, exportMode) +
-          renderSectionButtons(s, exportMode) +
-          "</div></section>"
-        );
-      }
-      let backgroundLayers = [];
-      if (sectionGradient) backgroundLayers.push(sectionGradient);
-      if (img) backgroundLayers.push("url('" + cssUrl(img) + "')");
-      let background = backgroundLayers.length
-        ? '<div class="lp-hero-background" style="background-image:' +
-          safeAttr(backgroundLayers.join(",")) +
-          ";" +
-          (sectionGradient && img ? "background-blend-mode:overlay;" : "") +
-          "filter:brightness(" +
-          brightness +
-          '%)"></div>'
-        : "";
       return (
         '<section class="' +
         cls +
         'lp-hero"' +
         sectionAttrs(s, exportMode) +
         ">" +
-        background +
+        renderInlineImage(s, "lp-hero-background", exportMode) +
+        gradientLayer +
         controls +
         '<div class="lp-hero-content">' +
         renderExtraShapes(s, exportMode) +
@@ -2287,26 +2266,52 @@
     );
     $("#imageUploadLabel").text(s.image ? "이미지 변경" : "이미지 선택");
     $("#removeImageBtn").prop("disabled", !s.image);
-    let imageBrightness =
-      s.imageBrightness === undefined ? 100 : Number(s.imageBrightness) || 100;
+    let primaryImageStyle =
+        (s.elementStyles && s.elementStyles.image) || {},
+      imageBrightness =
+        primaryImageStyle.brightness === undefined
+          ? 100
+          : Number(primaryImageStyle.brightness) || 100;
     $("#imageBrightness").val(imageBrightness).prop("disabled", !s.image);
     $("#imageBrightnessOutput").text(imageBrightness + "%");
     $("#resetImageBrightnessBtn").prop(
       "disabled",
       !s.image || imageBrightness === 100,
     );
-    let supportsImageSizing = s.type !== "hero";
-    $("#imageSizeControl").toggle(supportsImageSizing);
-    $("#duplicatePrimaryImageBtn").toggle(!!s.image && supportsImageSizing);
+    $("#imageSizeControl").toggle(true);
+    $("#duplicatePrimaryImageBtn").toggle(!!s.image);
+    $("#imageWidth")
+      .val(
+        primaryImageStyle.width === undefined ? "" : primaryImageStyle.width,
+      )
+      .prop(
+        "disabled",
+        !s.image || !!primaryImageStyle.fitSectionHeight,
+      );
     $("#imageHeight")
-      .val(s.imageHeight === undefined ? "" : s.imageHeight)
-      .prop("disabled", !s.image || !!s.imageFitSectionHeight);
+      .val(
+        primaryImageStyle.height === undefined ? "" : primaryImageStyle.height,
+      )
+      .prop(
+        "disabled",
+        !s.image || !!primaryImageStyle.fitSectionHeight,
+      );
     $("#imageFitSectionHeight")
-      .prop("checked", !!s.imageFitSectionHeight)
+      .prop("checked", !!primaryImageStyle.fitSectionHeight)
       .prop("disabled", !s.image);
     $("#extraImageFieldsList").html(
       (s.extraImages || [])
         .map(function (src, index) {
+          let key = "extraImage" + index,
+            style = (s.elementStyles && s.elementStyles[key]) || {},
+            brightness =
+              style.brightness === undefined
+                ? 100
+                : Number(style.brightness) || 100,
+            width =
+              style.width === undefined ? "" : Number(style.width) || "",
+            height =
+              style.height === undefined ? "" : Number(style.height) || "";
           return (
             '<div class="element-field-card extra-image-field-card" data-editor-key="extraImage' +
             index +
@@ -2318,9 +2323,40 @@
             index +
             '">삭제</button></span></div><div class="image-control-row"><div class="image-thumb" data-extra-image-thumb="' +
             index +
-            '"></div><div class="image-actions"><label class="upload-button">이미지 선택<input class="dynamic-extra-image" data-extra-image-index="' +
+            '"></div><div class="image-actions"><label class="upload-button">' +
+            (src ? "이미지 변경" : "이미지 선택") +
+            '<input class="dynamic-extra-image" data-extra-image-index="' +
             index +
-            '" type="file" accept="image/png,image/jpeg,image/webp" hidden></label></div></div></div>'
+            '" type="file" accept="image/png,image/jpeg,image/webp" hidden></label></div></div>' +
+            '<div class="image-brightness-control"><label class="field-label">밝기 / 어둡기</label><div class="range-row"><input type="range" class="dynamic-extra-image-brightness" data-extra-image-index="' +
+            index +
+            '" min="30" max="170" step="5" value="' +
+            brightness +
+            '"><output class="dynamic-extra-image-brightness-output">' +
+            brightness +
+            '%</output></div><button type="button" class="text-button image-brightness-reset dynamic-extra-image-brightness-reset" data-extra-image-index="' +
+            index +
+            '"' +
+            (brightness === 100 ? " disabled" : "") +
+            ">초기화</button></div>" +
+            '<div class="image-size-control"><label class="style-number-field">이미지 가로<input type="number" class="dynamic-extra-image-width" data-extra-image-index="' +
+            index +
+            '" min="20" max="3000" step="1" placeholder="자동" value="' +
+            width +
+            '"' +
+            (style.fitSectionHeight ? " disabled" : "") +
+            '><span>px</span></label><label class="style-number-field">이미지 세로<input type="number" class="dynamic-extra-image-height" data-extra-image-index="' +
+            index +
+            '" min="20" max="3000" step="1" placeholder="자동" value="' +
+            height +
+            '"' +
+            (style.fitSectionHeight ? " disabled" : "") +
+            '><span>px</span></label><label class="image-fit-check"><input type="checkbox" class="dynamic-extra-image-fit-height" data-extra-image-index="' +
+            index +
+            '"' +
+            (style.fitSectionHeight ? " checked" : "") +
+            "><span>부모 영역 높이에 맞춤</span></label></div>" +
+            "</div>"
           );
         })
         .join(""),
@@ -2364,7 +2400,7 @@
       if (button.text || button.image || button.backgroundImage)
         keys.push(button.key);
     });
-    if (s.type !== "hero" && s.image) keys.push("image");
+    if (s.image) keys.push("image");
     (s.extraImages || []).forEach(function (src, index) {
       if (src) keys.push("extraImage" + index);
     });
@@ -2527,6 +2563,9 @@
       highestElementTop = Infinity,
       lowestElementBottom = -Infinity;
     if (!section) return minimumHeight;
+    // Hero images are freely positioned/cropped design layers. Their current
+    // bounds must never lock the editable hero height to a previous value.
+    if (section.type === "hero") return minimumHeight;
     if (!sectionNode) {
       $("#deviceScreen .lp-section").each(function () {
         if (String($(this).data("section-id")) === String(section.id))
@@ -2544,9 +2583,31 @@
     $(sectionNode)
       .find(".canvas-movable:visible")
       .each(function () {
-        let rect = this.getBoundingClientRect(),
+        let $element = $(this),
+          key = String($element.data("move-key") || ""),
+          rect = this.getBoundingClientRect(),
           elementTop = (rect.top - sectionRect.top) / layoutScale,
-          elementBottom = (rect.bottom - sectionRect.top) / layoutScale;
+          elementBottom = (rect.bottom - sectionRect.top) / layoutScale,
+          sectionHeight = sectionRect.height / layoutScale,
+          isImage = key === "image" || /^extraImage\d+$/.test(key),
+          elementStyle =
+            (section.elementStyles && section.elementStyles[key]) || {},
+          followsSectionHeight =
+            isImage && elementStyle.fitSectionHeight,
+          spansSectionHeight =
+            isImage &&
+            elementTop <= SECTION_ELEMENT_SAFE_INSET &&
+            elementBottom >= sectionHeight - SECTION_ELEMENT_SAFE_INSET &&
+            elementBottom - elementTop >=
+              sectionHeight - SECTION_ELEMENT_SAFE_INSET * 2;
+        // A full-height image follows the section bounds. Counting it again
+        // would add the safe inset on every edit and continuously grow height.
+        if (
+          followsSectionHeight ||
+          spansSectionHeight ||
+          (section.type === "hero" && isImage)
+        )
+          return;
         if (Number.isFinite(elementTop))
           highestElementTop = Math.min(highestElementTop, elementTop);
         if (Number.isFinite(elementBottom))
@@ -2879,7 +2940,11 @@
       });
     });
   }
-  function captureStableElementAnchors(sectionIds, excludedEntries) {
+  function captureStableElementAnchors(
+    sectionIds,
+    excludedEntries,
+    relativeToSection,
+  ) {
     let sectionSet = new Set(
         (sectionIds || []).map(function (id) {
           return String(id);
@@ -2901,13 +2966,17 @@
       if (!sectionNode || !key || (sectionSet.size && !sectionSet.has(sectionId)))
         return;
       if (excludedSet.has(sectionId + "::" + key)) return;
-      let rect = this.getBoundingClientRect();
+      let rect = this.getBoundingClientRect(),
+        sectionRect = sectionNode.getBoundingClientRect(),
+        centerX = rect.left + rect.width / 2,
+        centerY = rect.top + rect.height / 2;
       if (!rect.width || !rect.height) return;
       anchors.push({
         sectionId: sectionId,
         key: key,
-        centerX: rect.left + rect.width / 2,
-        centerY: rect.top + rect.height / 2,
+        centerX: relativeToSection ? centerX - sectionRect.left : centerX,
+        centerY: relativeToSection ? centerY - sectionRect.top : centerY,
+        relativeToSection: !!relativeToSection,
       });
     });
     return anchors;
@@ -2934,40 +3003,54 @@
           : 1;
       scale = scale || 1;
       if (!rect.width || !rect.height) return;
-      let position = getPosition(section, anchor.key),
+      let targetCenterX = anchor.relativeToSection
+          ? sectionRect.left + anchor.centerX
+          : anchor.centerX,
+        targetCenterY = anchor.relativeToSection
+          ? sectionRect.top + anchor.centerY
+          : anchor.centerY,
+        position = getPosition(section, anchor.key),
         x = position.x +
-          (anchor.centerX - (rect.left + rect.width / 2)) / scale,
+          (targetCenterX - (rect.left + rect.width / 2)) / scale,
         y = position.y +
-          (anchor.centerY - (rect.top + rect.height / 2)) / scale;
+          (targetCenterY - (rect.top + rect.height / 2)) / scale;
       setPosition(section, anchor.key, x, y);
       $(node).css("transform", elementTransform(section, anchor.key, x, y));
     });
   }
   function freezeFittedImagesBeforeElementDeletion(anchors) {
     (anchors || []).forEach(function (anchor) {
-      if (anchor.key !== "image") return;
+      if (
+        anchor.key !== "image" &&
+        !/^extraImage\d+$/.test(String(anchor.key))
+      )
+        return;
       let section = currentTemplate().sections.find(function (item) {
         return String(item.id) === String(anchor.sectionId);
       });
-      if (!section || !section.image || !section.imageFitSectionHeight) return;
+      let imageStyle =
+        section &&
+        section.elementStyles &&
+        section.elementStyles[anchor.key];
+      if (!section || !imageStyle || !imageStyle.fitSectionHeight) return;
       let node = null;
       $("#deviceScreen .canvas-movable").each(function () {
         let $node = $(this);
         if (
           String($node.closest(".lp-section").data("section-id")) ===
             String(anchor.sectionId) &&
-          String($node.data("move-key")) === "image"
+          String($node.data("move-key")) === String(anchor.key)
         )
           node = this;
       });
       if (!node) return;
       let layoutScale = responsiveScale(state.deviceWidth) || 1;
       if (!node.offsetWidth || !node.offsetHeight || !layoutScale) return;
-      section.imageWidth =
+      imageStyle.width =
         Math.round((node.offsetWidth / layoutScale) * 100) / 100;
-      section.imageHeight =
+      imageStyle.height =
         Math.round((node.offsetHeight / layoutScale) * 100) / 100;
-      section.imageFitSectionHeight = false;
+      imageStyle.fitSectionHeight = false;
     });
   }
   function setDevice() {
@@ -3109,6 +3192,40 @@
     renderEditor();
     renderStyle();
     scrollRightEditorToSelection(null);
+  }
+  function selectElementFromEditor(key, additive) {
+    let section = currentSection();
+    if (!section || !key) return;
+    let groupItems = groupSelectionItems(section, key),
+      allSelected = groupItems.every(function (item) {
+        return isElementSelected(item.sectionId, item.key);
+      });
+    if (additive) {
+      if (allSelected) {
+        let removeSet = new Set(
+          groupItems.map(function (item) {
+            return String(item.sectionId) + "::" + String(item.key);
+          }),
+        );
+        state.selectedElements = state.selectedElements.filter(function (item) {
+          return !removeSet.has(
+            String(item.sectionId) + "::" + String(item.key),
+          );
+        });
+      } else
+        state.selectedElements = expandSelectionGroups(
+          state.selectedElements.concat(groupItems),
+        );
+    } else state.selectedElements = groupItems.slice();
+    state.selectedSectionId = section.id;
+    state.selectedElementKey = allSelected && additive ? null : key;
+    syncPrimarySelection(section.id);
+    syncElementSelectionClasses();
+    renderSectionList();
+    renderEditorSelectionHighlight(section);
+    renderPositionEditor();
+    renderStyle();
+    renderResizeHandle();
   }
   function clearSelection() {
     if (
@@ -3442,8 +3559,7 @@
       if (style.height === undefined)
         style.height = Math.max(20, Math.round(node.offsetHeight));
       if (key === "image" && style.brightness === undefined)
-        style.brightness =
-          s.imageBrightness === undefined ? 100 : Number(s.imageBrightness) || 100;
+        style.brightness = 100;
       let imageComputed = window.getComputedStyle(node);
       style.objectFit = style.objectFit || imageComputed.objectFit || "contain";
       if (style.borderRadius === undefined)
@@ -4331,6 +4447,25 @@
         (target.kind === "element" &&
           layoutAffectingFields.indexOf(field) >= 0) ||
         (target.kind === "section" && field === "height"),
+      isSectionHeightChange = target.kind === "section" && field === "height",
+      fittedImageEntries = isSectionHeightChange
+        ? target.items.reduce(function (entries, item) {
+            ["image"]
+              .concat(
+                (item.section.extraImages || []).map(function (_, index) {
+                  return "extraImage" + index;
+                }),
+              )
+              .forEach(function (key) {
+                let style =
+                  item.section.elementStyles &&
+                  item.section.elementStyles[key];
+                if (style && style.fitSectionHeight)
+                  entries.push({ sectionId: item.section.id, key: key });
+              });
+            return entries;
+          }, [])
+        : [],
       stableAnchors = shouldPreserveElementAnchors
         ? captureStableElementAnchors(
             target.items.map(function (item) {
@@ -4338,6 +4473,8 @@
                 ? item.sectionId
                 : item.section && item.section.id;
             }),
+            fittedImageEntries,
+            isSectionHeightChange,
           )
         : [];
     target.items.forEach(function (item) {
@@ -4354,6 +4491,14 @@
       }
     });
     renderPage();
+    if (isSectionHeightChange)
+      fittedImageEntries.forEach(function (entry) {
+        let section = currentTemplate().sections.find(function (item) {
+          return String(item.id) === String(entry.sectionId);
+        });
+        if (section)
+          alignFittedImageToSection(section, entry.key, "vertical");
+      });
     if (stableAnchors.length) {
       restoreStableElementAnchors(stableAnchors);
       keepRenderedElementsInsideSections();
@@ -4387,6 +4532,12 @@
 
   function bindEvents() {
     $(window).on("resize", fitTemplatePreviews);
+    $("#editorFields").on("pointerdown", "[data-editor-key]", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      let key = String($(this).attr("data-editor-key") || "");
+      if (!key) return;
+      selectElementFromEditor(key, e.ctrlKey || e.metaKey);
+    });
     $(document).on("click", ".template-card,.workspace-tab", function (e) {
       if (
         $(e.target).closest(
@@ -4794,7 +4945,10 @@
       let s = currentSection();
       if (!s || !s.image) return;
       let value = Math.max(30, Math.min(170, Number(this.value) || 100));
-      s.imageBrightness = value;
+      s.elementStyles = s.elementStyles || {};
+      let style =
+        s.elementStyles.image || (s.elementStyles.image = {});
+      style.brightness = value;
       $("#imageBrightnessOutput").text(value + "%");
       $("#resetImageBrightnessBtn").prop("disabled", value === 100);
       renderPage();
@@ -4804,52 +4958,114 @@
       let s = currentSection();
       if (!s || !s.image) return;
       mutateWithHistory(function () {
-        s.imageBrightness = 100;
+        s.elementStyles = s.elementStyles || {};
+        let style =
+          s.elementStyles.image || (s.elementStyles.image = {});
+        style.brightness = 100;
       });
     });
-    $("#imageHeight")
+    $("#imageWidth")
       .on("input", function () {
         let s = currentSection();
-        if (!s || !s.image || s.imageFitSectionHeight || this.value === "")
+        if (!s || !s.image || this.value === "")
           return;
         let value = Number(this.value);
         if (!Number.isFinite(value)) return;
-        s.imageHeight = value;
+        s.elementStyles = s.elementStyles || {};
+        let style =
+          s.elementStyles.image || (s.elementStyles.image = {});
+        style.width = value;
+        style.fitSectionHeight = false;
         renderPage();
         markChanged();
       })
       .on("change", function () {
         let s = currentSection();
         if (!s) return;
+        s.elementStyles = s.elementStyles || {};
+        let style =
+          s.elementStyles.image || (s.elementStyles.image = {});
         if (this.value === "") {
-          delete s.imageHeight;
+          delete style.width;
           renderPage();
           markChanged();
           return;
         }
         let value = Math.max(20, Math.min(3000, Number(this.value) || 20));
         this.value = value;
-        s.imageHeight = value;
+        style.width = value;
+        style.fitSectionHeight = false;
+        renderPage();
+        markChanged();
+      });
+    $("#imageHeight")
+      .on("input", function () {
+        let s = currentSection();
+        if (!s || !s.image || this.value === "") return;
+        let value = Number(this.value);
+        if (!Number.isFinite(value)) return;
+        s.elementStyles = s.elementStyles || {};
+        let style =
+          s.elementStyles.image || (s.elementStyles.image = {});
+        style.height = value;
+        style.fitSectionHeight = false;
+        renderPage();
+        markChanged();
+      })
+      .on("change", function () {
+        let s = currentSection();
+        if (!s) return;
+        s.elementStyles = s.elementStyles || {};
+        let style =
+          s.elementStyles.image || (s.elementStyles.image = {});
+        if (this.value === "") delete style.height;
+        else {
+          let value = Math.max(20, Math.min(3000, Number(this.value) || 20));
+          this.value = value;
+          style.height = value;
+        }
+        style.fitSectionHeight = false;
         renderPage();
         markChanged();
       });
     $("#imageFitSectionHeight").on("change", function () {
       let s = currentSection();
-      if (!s || s.type === "hero" || !s.image) return;
-      let checked = this.checked,
-        currentHeight = 0;
-      $("#deviceScreen .lp-section").each(function () {
-        if ($(this).data("section-id") === s.id)
-          currentHeight = this.offsetHeight;
+      if (!s || !s.image) return;
+      let checked = this.checked;
+      s.elementStyles = s.elementStyles || {};
+      let style =
+        s.elementStyles.image || (s.elementStyles.image = {});
+      if (!checked) {
+        mutateWithHistory(function () {
+          style.fitSectionHeight = false;
+        });
+        return;
+      }
+      let node = null;
+      $("#deviceScreen .canvas-movable").each(function () {
+        let $node = $(this);
+        if (
+          String($node.closest(".lp-section").data("section-id")) ===
+            String(s.id) &&
+          String($node.data("move-key")) === "image"
+        )
+          node = this;
       });
-      mutateWithHistory(function () {
-        s.imageFitSectionHeight = checked;
-        if (checked) {
-          s.customStyle = s.customStyle || {};
-          if (s.customStyle.height === undefined)
-            s.customStyle.height = Math.max(40, currentHeight || 40);
-        }
-      });
+      if (!node) return;
+      let stableAnchors = captureStableElementAnchors(
+        [s.id],
+        [{ sectionId: s.id, key: "image" }],
+      );
+      pushHistory();
+      if (!fitImageToSection(s, "image", node, "vertical")) return;
+      style.fitSectionHeight = true;
+      renderPage();
+      alignFittedImageToSection(s, "image", "vertical");
+      restoreStableElementAnchors(stableAnchors);
+      renderResizeHandle();
+      renderEditor();
+      renderStyle();
+      markChanged();
     });
     $("#addImageElementBtn").on("click", function () {
       let s = currentSection();
@@ -4884,6 +5100,152 @@
           input.value = "";
         };
         reader.readAsDataURL(file);
+      },
+    );
+    $("#extraImageFieldsList").on(
+      "input",
+      ".dynamic-extra-image-brightness",
+      function () {
+        let s = currentSection(),
+          index = Number($(this).data("extra-image-index")),
+          key = "extraImage" + index,
+          value = Math.max(30, Math.min(170, Number(this.value) || 100));
+        if (!s || !(s.extraImages || [])[index]) return;
+        s.elementStyles = s.elementStyles || {};
+        let style = s.elementStyles[key] || (s.elementStyles[key] = {});
+        style.brightness = value;
+        $(this)
+          .closest(".image-brightness-control")
+          .find(".dynamic-extra-image-brightness-output")
+          .text(value + "%");
+        $(this)
+          .closest(".image-brightness-control")
+          .find(".dynamic-extra-image-brightness-reset")
+          .prop("disabled", value === 100);
+        renderPage();
+        markChanged();
+      },
+    );
+    $("#extraImageFieldsList").on(
+      "click",
+      ".dynamic-extra-image-brightness-reset",
+      function () {
+        let s = currentSection(),
+          index = Number($(this).data("extra-image-index")),
+          key = "extraImage" + index;
+        if (!s || !(s.extraImages || [])[index]) return;
+        mutateWithHistory(function () {
+          s.elementStyles = s.elementStyles || {};
+          let style = s.elementStyles[key] || (s.elementStyles[key] = {});
+          style.brightness = 100;
+        });
+      },
+    );
+    $("#extraImageFieldsList")
+      .on("input", ".dynamic-extra-image-width", function () {
+        let s = currentSection(),
+          index = Number($(this).data("extra-image-index")),
+          key = "extraImage" + index;
+        if (!s || this.value === "") return;
+        let value = Number(this.value);
+        if (!Number.isFinite(value)) return;
+        s.elementStyles = s.elementStyles || {};
+        let style = s.elementStyles[key] || (s.elementStyles[key] = {});
+        style.width = value;
+        style.fitSectionHeight = false;
+        renderPage();
+        markChanged();
+      })
+      .on("change", ".dynamic-extra-image-width", function () {
+        let s = currentSection(),
+          index = Number($(this).data("extra-image-index")),
+          key = "extraImage" + index;
+        if (!s) return;
+        s.elementStyles = s.elementStyles || {};
+        let style = s.elementStyles[key] || (s.elementStyles[key] = {});
+        if (this.value === "") delete style.width;
+        else {
+          let value = Math.max(20, Math.min(3000, Number(this.value) || 20));
+          this.value = value;
+          style.width = value;
+        }
+        style.fitSectionHeight = false;
+        renderPage();
+        markChanged();
+      })
+      .on("input", ".dynamic-extra-image-height", function () {
+        let s = currentSection(),
+          index = Number($(this).data("extra-image-index")),
+          key = "extraImage" + index;
+        if (!s || this.value === "") return;
+        let value = Number(this.value);
+        if (!Number.isFinite(value)) return;
+        s.elementStyles = s.elementStyles || {};
+        let style = s.elementStyles[key] || (s.elementStyles[key] = {});
+        style.height = value;
+        style.fitSectionHeight = false;
+        renderPage();
+        markChanged();
+      })
+      .on("change", ".dynamic-extra-image-height", function () {
+        let s = currentSection(),
+          index = Number($(this).data("extra-image-index")),
+          key = "extraImage" + index;
+        if (!s) return;
+        s.elementStyles = s.elementStyles || {};
+        let style = s.elementStyles[key] || (s.elementStyles[key] = {});
+        if (this.value === "") delete style.height;
+        else {
+          let value = Math.max(20, Math.min(3000, Number(this.value) || 20));
+          this.value = value;
+          style.height = value;
+        }
+        style.fitSectionHeight = false;
+        renderPage();
+        markChanged();
+      });
+    $("#extraImageFieldsList").on(
+      "change",
+      ".dynamic-extra-image-fit-height",
+      function () {
+        let s = currentSection(),
+          index = Number($(this).data("extra-image-index")),
+          key = "extraImage" + index,
+          checked = this.checked;
+        if (!s || !(s.extraImages || [])[index]) return;
+        s.elementStyles = s.elementStyles || {};
+        let style = s.elementStyles[key] || (s.elementStyles[key] = {});
+        if (!checked) {
+          mutateWithHistory(function () {
+            style.fitSectionHeight = false;
+          });
+          return;
+        }
+        let node = null;
+        $("#deviceScreen .canvas-movable").each(function () {
+          let $node = $(this);
+          if (
+            String($node.closest(".lp-section").data("section-id")) ===
+              String(s.id) &&
+            String($node.data("move-key")) === key
+          )
+            node = this;
+        });
+        if (!node) return;
+        let stableAnchors = captureStableElementAnchors(
+          [s.id],
+          [{ sectionId: s.id, key: key }],
+        );
+        pushHistory();
+        if (!fitImageToSection(s, key, node, "vertical")) return;
+        style.fitSectionHeight = true;
+        renderPage();
+        alignFittedImageToSection(s, key, "vertical");
+        restoreStableElementAnchors(stableAnchors);
+        renderResizeHandle();
+        renderEditor();
+        renderStyle();
+        markChanged();
       },
     );
     $("#extraImageFieldsList").on(
@@ -5676,8 +6038,14 @@
         if (!resizeDrag.historyCaptured) {
           pushHistory();
           resizeDrag.historyCaptured = true;
-          if (resizeDrag.key === "image")
-            resizeDrag.section.imageFitSectionHeight = false;
+          if (resizeDrag.key === "image") {
+            resizeDrag.section.elementStyles =
+              resizeDrag.section.elementStyles || {};
+            let imageStyle =
+              resizeDrag.section.elementStyles.image ||
+              (resizeDrag.section.elementStyles.image = {});
+            imageStyle.fitSectionHeight = false;
+          }
         }
         resizeDrag.moved = true;
       }
@@ -5718,15 +6086,24 @@
         changeHeight = vertical || (e.shiftKey && !!resizeDrag.ratio);
       width = Math.round(Math.max(minWidth, Math.min(1024, width)));
       height = Math.round(Math.max(minHeight, Math.min(3000, height)));
-      if (resizeDrag.key === "image") {
-        let imageScale = responsiveScale(state.deviceWidth) || 1,
-          storedImageWidth = Math.round(width / imageScale),
-          storedImageHeight = Math.round(height / imageScale);
-        if (changeWidth) resizeDrag.section.imageWidth = storedImageWidth;
-        if (changeHeight) resizeDrag.section.imageHeight = storedImageHeight;
-        if (changeHeight) $("#imageHeight").val(storedImageHeight);
-        $("#imageFitSectionHeight").prop("checked", false);
-        $("#imageHeight").prop("disabled", false);
+      if (isImage) {
+        resizeDrag.section.elementStyles =
+          resizeDrag.section.elementStyles || {};
+        let resizeStyle =
+            resizeDrag.section.elementStyles[resizeDrag.key] ||
+            (resizeDrag.section.elementStyles[resizeDrag.key] = {}),
+          elementScale = responsiveScale(state.deviceWidth) || 1,
+          storedWidth = Math.round(width / elementScale),
+          storedHeight = Math.round(height / elementScale);
+        if (changeWidth) resizeStyle.width = storedWidth;
+        if (changeHeight) resizeStyle.height = storedHeight;
+        resizeStyle.fitSectionHeight = false;
+        if (resizeDrag.key === "image") {
+          if (changeWidth) $("#imageWidth").val(storedWidth);
+          if (changeHeight) $("#imageHeight").val(storedHeight);
+          $("#imageFitSectionHeight").prop("checked", false);
+          $("#imageWidth,#imageHeight").prop("disabled", false);
+        }
       } else {
         resizeDrag.section.elementStyles =
           resizeDrag.section.elementStyles || {};

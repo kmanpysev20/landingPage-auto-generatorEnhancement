@@ -3892,16 +3892,24 @@
     return output.trim();
   }
   function convertResponsiveValuesForDownload(source) {
-    return String(source || "").replace(
-      /calc\(\s*(-?\d+(?:\.\d+)?)px\s*\*\s*var\(\s*--responsive-scale\s*(?:,\s*1\s*)?\)\s*\)/g,
-      function (_, pixelValue) {
-        let viewportValue =
-          (Number(pixelValue) / RESPONSIVE_BASE_WIDTH) * 100;
-        return (
-          String(Math.round(viewportValue * 1000000) / 1000000) + "vw"
-        );
-      },
-    );
+    function pixelToViewport(pixelValue) {
+      let viewportValue =
+        (Number(pixelValue) / RESPONSIVE_BASE_WIDTH) * 100;
+      return String(Math.round(viewportValue * 1000000) / 1000000) + "vw";
+    }
+    return String(source || "")
+      .replace(
+        /calc\(\s*(-?\d+(?:\.\d+)?)px\s*\*\s*var\(\s*--responsive-scale\s*(?:,\s*1\s*)?\)\s*\)/g,
+        function (_, pixelValue) {
+          return pixelToViewport(pixelValue);
+        },
+      )
+      .replace(
+        /(-?\d+(?:\.\d+)?)px\s*\*\s*var\(\s*--responsive-scale\s*(?:,\s*1\s*)?\)/g,
+        function (_, pixelValue) {
+          return pixelToViewport(pixelValue);
+        },
+      );
   }
   function downloadPageStyle(t) {
     let style = pageStyle(t),
@@ -3949,7 +3957,16 @@
         expressions.push(value);
         return token;
       }),
-      tokens = protectedHtml
+      leafElements = [];
+    protectedHtml = protectedHtml.replace(
+      /<([a-z][\w:-]*)([^<>]*)>([^<>]*)<\/\1>/gi,
+      function (value) {
+        let token = "__HTML_LEAF_ELEMENT_" + leafElements.length + "__";
+        leafElements.push(value);
+        return token;
+      },
+    );
+    let tokens = protectedHtml
         .replace(/>\s*</g, "><")
         .split(/(<[^>]+>)/g)
         .filter(function (token) {
@@ -3971,6 +3988,9 @@
     });
     return lines
       .join("\n")
+      .replace(/__HTML_LEAF_ELEMENT_(\d+)__/g, function (_, index) {
+        return leafElements[Number(index)] || "";
+      })
       .replace(/__JSP_EXPRESSION_(\d+)__/g, function (_, index) {
         return expressions[Number(index)] || "";
       });

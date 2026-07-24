@@ -4397,14 +4397,22 @@
       String(version.revision).padStart(2, "0")
     );
   }
+  function fakeDownloadFileStem(version) {
+    return downloadFileStem(version).replace(
+      /^landing000_/,
+      "landing000_expire_",
+    );
+  }
   function openDownloadTypeModal() {
     captureResponsiveSectionHeights();
-    let stem = downloadFileStem(pendingDownloadVersion(currentTemplate()));
+    let version = pendingDownloadVersion(currentTemplate()),
+      stem = downloadFileStem(version),
+      fakeStem = fakeDownloadFileStem(version);
     $('#downloadTypeModal [data-download-type="authentic"] small').text(
       stem + ".jsp",
     );
     $('#downloadTypeModal [data-download-type="fake"] small').text(
-      stem + ".expire.jsp",
+      fakeStem + ".jsp",
     );
     $("#downloadTypeModal").prop("hidden", false);
   }
@@ -4418,9 +4426,10 @@
         downloadVersion,
       ),
       fileStem = downloadFileStem(downloadVersion),
-      jspFilename = isFake ? fileStem + ".expire.jsp" : fileStem + ".jsp",
+      fakeFileStem = fakeDownloadFileStem(downloadVersion),
+      jspFilename = isFake ? fakeFileStem + ".jsp" : fileStem + ".jsp",
       previewFilename = isFake
-        ? fileStem + ".expire.preview.html"
+        ? fakeFileStem + ".preview.html"
         : fileStem + ".preview.html",
       zipFilename = workspaceZipFilename();
     $("[data-download-type]").prop("disabled", true);

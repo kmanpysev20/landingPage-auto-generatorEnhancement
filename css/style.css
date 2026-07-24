@@ -749,6 +749,7 @@ button {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  object-fit: fill;
   border-radius: 6px;
   background: #fff;
   scrollbar-width: none;
@@ -2083,13 +2084,25 @@ img.lp-hero-background {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
+  object-fit : fill;
   gap: calc(10px * var(--responsive-scale));
   margin: calc(10px * var(--responsive-scale)) 0;
 }
+.lp-hero-content > .lp-extra-images {
+  width: calc(100% + 56px * var(--responsive-scale));
+  margin-left: calc(-28px * var(--responsive-scale));
+  margin-right: calc(-28px * var(--responsive-scale));
+}
+.lp-content > .lp-extra-images,
+.lp-footer > .lp-extra-images {
+  width: calc(100% + 36px * var(--responsive-scale));
+  margin-left: calc(-18px * var(--responsive-scale));
+  margin-right: calc(-18px * var(--responsive-scale));
+}
 .lp-extra-image {
-  width: calc(64px * var(--responsive-scale));
-  height: calc(64px * var(--responsive-scale));
-  object-fit: fill;
+  width: 100%;
+  height: auto;
+  flex: 0 0 auto;
 }
 .lp-content .lp-eyebrow {
   font-size: calc(11px * var(--responsive-scale));

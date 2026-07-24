@@ -125,6 +125,7 @@
     s.extraImages = [];
     s.extraShapes = [];
     s.elementGroups = [];
+    s.extraImageWidthVersion = 2;
     s.positions = {};
     s.elementStyles = {};
     s.customStyle = {
@@ -483,6 +484,26 @@
         return group.keys.length >= 2;
       });
   }
+  function migrateExtraImageWidths(section) {
+    if (!section || section.extraImageWidthVersion === 2) return;
+    let expectedInnerWidth = section.type === "hero" ? 304 : 324;
+    (section.extraImages || []).forEach(function (_, index) {
+      let key = "extraImage" + index,
+        style = section.elementStyles && section.elementStyles[key],
+        width = style && Number(style.width);
+      if (
+        style &&
+        Number.isFinite(width) &&
+        Math.abs(width - expectedInnerWidth) <= 16
+      ) {
+        style.width = RESPONSIVE_BASE_WIDTH;
+        let position = getPosition(section, key);
+        if (Math.abs(position.x) <= 50)
+          setPosition(section, key, 0, position.y);
+      }
+    });
+    section.extraImageWidthVersion = 2;
+  }
   function hideElementContextMenu() {
     $("#elementContextMenu").prop("hidden", true);
     elementContextTarget = null;
@@ -686,6 +707,97 @@
       $(sectionNode).children(".canvas-resize-handle"),
       primary.node,
       sectionNode,
+    );
+  }
+  function fitImageToSection(section, key, node, axis) {
+    if (
+      !section ||
+      !node ||
+      (key !== "image" && !/^extraImage\d+$/.test(key))
+    )
+      return false;
+    let currentWidth = node.offsetWidth,
+      currentHeight = node.offsetHeight,
+      sectionNode = $(node).closest(".lp-section")[0];
+    if (!currentWidth || !currentHeight || !sectionNode) return false;
+    let style =
+        (section.elementStyles && section.elementStyles[key]) || {},
+      effectScale = Math.max(0.1, Number(style.scale) || 100) / 100,
+      layoutScale = responsiveScale(state.deviceWidth) || 1,
+      targetWidth,
+      targetHeight,
+      position = getPosition(section, key);
+    if (axis === "vertical") {
+      targetHeight =
+        Math.round(
+          (sectionNode.offsetHeight / layoutScale / effectScale) * 100,
+        ) / 100;
+      targetWidth =
+        Math.round(targetHeight * (currentWidth / currentHeight) * 100) / 100;
+    } else {
+      targetWidth =
+        Math.round(
+          (sectionNode.offsetWidth / layoutScale / effectScale) * 100,
+        ) / 100;
+      targetHeight =
+        Math.round(targetWidth * (currentHeight / currentWidth) * 100) / 100;
+    }
+    if (key === "image") {
+      section.imageFitSectionHeight = false;
+      section.imageWidth = targetWidth;
+      section.imageHeight = targetHeight;
+    } else {
+      section.elementStyles = section.elementStyles || {};
+      style = section.elementStyles[key] || (section.elementStyles[key] = {});
+      style.width = targetWidth;
+      style.height = targetHeight;
+    }
+    setPosition(
+      section,
+      key,
+      axis === "horizontal" ? 0 : position.x,
+      axis === "vertical" ? 0 : position.y,
+    );
+    return true;
+  }
+  function alignFittedImageToSection(section, key, axis) {
+    let node = null;
+    $("#deviceScreen .canvas-movable").each(function () {
+      let $node = $(this);
+      if (
+        String($node.closest(".lp-section").data("section-id")) ===
+          String(section.id) &&
+        String($node.data("move-key")) === String(key)
+      )
+        node = this;
+    });
+    if (!node) return;
+    let sectionNode = $(node).closest(".lp-section")[0],
+      sectionRect = sectionNode.getBoundingClientRect(),
+      nodeRect = node.getBoundingClientRect(),
+      scale = sectionNode.offsetWidth
+        ? sectionRect.width / sectionNode.offsetWidth
+        : 1,
+      position = getPosition(section, key);
+    scale = scale || 1;
+    if (axis === "vertical")
+      setPosition(
+        section,
+        key,
+        position.x,
+        position.y + (sectionRect.top - nodeRect.top) / scale,
+      );
+    else
+      setPosition(
+        section,
+        key,
+        position.x + (sectionRect.left - nodeRect.left) / scale,
+        position.y,
+      );
+    position = getPosition(section, key);
+    $(node).css(
+      "transform",
+      elementTransform(section, key, position.x, position.y),
     );
   }
   function snapshot() {
@@ -1370,6 +1482,7 @@
       }
       (template.sections || []).forEach(function (section) {
         normalizeElementGroups(section);
+        migrateExtraImageWidths(section);
         if (section.type === "hero") section.name = "히어로(상단)";
         else if (section.type === "section") section.name = "섹션(중단)";
         else if (section.type === "footer") section.name = "푸터(하단)";
@@ -5517,8 +5630,6 @@
         startWidth = rect.width / (scale * effectScale),
         startHeight = rect.height / (scale * effectScale);
       let startPosition = getPosition(section, key);
-      pushHistory();
-      if (key === "image") section.imageFitSectionHeight = false;
       resizeDrag = {
         handle: this,
         node: entry.node,
@@ -5538,6 +5649,8 @@
         ratio: startWidth / startHeight,
         scale: scale,
         pointerId: e.pointerId,
+        moved: false,
+        historyCaptured: false,
       };
       try {
         this.setPointerCapture(e.pointerId);
@@ -5556,6 +5669,18 @@
     });
     $(document).on("pointermove.canvasResize", function (e) {
       if (!resizeDrag) return;
+      if (
+        Math.abs(e.clientX - resizeDrag.startX) > 0.5 ||
+        Math.abs(e.clientY - resizeDrag.startY) > 0.5
+      ) {
+        if (!resizeDrag.historyCaptured) {
+          pushHistory();
+          resizeDrag.historyCaptured = true;
+          if (resizeDrag.key === "image")
+            resizeDrag.section.imageFitSectionHeight = false;
+        }
+        resizeDrag.moved = true;
+      }
       let isImage =
           resizeDrag.key === "image" || /^extraImage/.test(resizeDrag.key),
         isShape = /^shape/.test(resizeDrag.key),
@@ -5693,13 +5818,56 @@
       "pointerup.canvasResize pointercancel.canvasResize",
       function () {
         if (!resizeDrag) return;
+        let moved = resizeDrag.moved;
         try {
           resizeDrag.handle.releasePointerCapture(resizeDrag.pointerId);
         } catch (ignore) {}
         resizeDrag = null;
         $("body").removeClass("direct-resizing");
         document.body.style.removeProperty("--resize-cursor");
+        if (!moved) return;
         renderPage();
+        renderEditor();
+        renderStyle();
+        markChanged();
+      },
+    );
+    $("#deviceScreen").on(
+      "dblclick",
+      '.canvas-resize-handle[data-resize-direction="w"],.canvas-resize-handle[data-resize-direction="e"],.canvas-resize-handle[data-resize-direction="n"],.canvas-resize-handle[data-resize-direction="s"]',
+      function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        let $handle = $(this),
+          sectionId = $handle.attr("data-section-id"),
+          key = $handle.attr("data-resize-key"),
+          direction = $handle.attr("data-resize-direction"),
+          axis = /[ns]/.test(direction) ? "vertical" : "horizontal",
+          section = currentTemplate().sections.find(function (item) {
+            return String(item.id) === String(sectionId);
+          }),
+          entry = selectedEntries().find(function (item) {
+            return (
+              String(item.sectionId) === String(sectionId) && item.key === key
+            );
+          });
+        if (
+          !section ||
+          !entry ||
+          !entry.node ||
+          (key !== "image" && !/^extraImage\d+$/.test(key))
+        )
+          return;
+        let stableAnchors = captureStableElementAnchors(
+          [sectionId],
+          [{ sectionId: sectionId, key: key }],
+        );
+        pushHistory();
+        if (!fitImageToSection(section, key, entry.node, axis)) return;
+        renderPage();
+        alignFittedImageToSection(section, key, axis);
+        restoreStableElementAnchors(stableAnchors);
+        renderResizeHandle();
         renderEditor();
         renderStyle();
         markChanged();

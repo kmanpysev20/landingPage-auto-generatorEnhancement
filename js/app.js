@@ -4309,6 +4309,160 @@
     }
     return { jsp: markup, files: files, failures: failures };
   }
+  function bundledImageMimeType(filename) {
+    let extension = String(filename || "")
+      .split(/[?#]/)[0]
+      .split(".")
+      .pop()
+      .toLowerCase();
+    return (
+      {
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        gif: "image/gif",
+        webp: "image/webp",
+        svg: "image/svg+xml",
+        avif: "image/avif",
+        bmp: "image/bmp",
+      }[extension] || "image/png"
+    );
+  }
+  function bundledImageDataUrl(file) {
+    let bytes =
+        file.content instanceof Uint8Array
+          ? file.content
+          : new Uint8Array(file.content || 0),
+      binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 32768)
+      binary += String.fromCharCode.apply(
+        null,
+        bytes.subarray(offset, offset + 32768),
+      );
+    return (
+      "data:" +
+      bundledImageMimeType(file.name) +
+      ";base64," +
+      btoa(binary)
+    );
+  }
+  function previewHtmlWithEmbeddedImages(previewHtml, imageFiles) {
+    let html = String(previewHtml || "");
+    (imageFiles || []).forEach(function (file) {
+      if (!file || !file.name || !file.content) return;
+      html = html.split(String(file.name)).join(bundledImageDataUrl(file));
+    });
+    return html;
+  }
+  function waitForFrameLoad(frame, html) {
+    return new Promise(function (resolve, reject) {
+      let timeout = setTimeout(function () {
+        reject(new Error("landing image frame timeout"));
+      }, 10000);
+      frame.onload = function () {
+        clearTimeout(timeout);
+        resolve();
+      };
+      frame.onerror = function () {
+        clearTimeout(timeout);
+        reject(new Error("landing image frame failed"));
+      };
+      frame.srcdoc = html;
+    });
+  }
+  function waitForFrameImages(frameDocument) {
+    return Promise.all(
+      Array.from(frameDocument.images || []).map(function (image) {
+        if (image.complete) {
+          if (typeof image.decode === "function")
+            return image.decode().catch(function () {});
+          return Promise.resolve();
+        }
+        return new Promise(function (resolve) {
+          image.addEventListener("load", resolve, { once: true });
+          image.addEventListener("error", resolve, { once: true });
+        });
+      }),
+    );
+  }
+  function canvasJpegBlob(canvas) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (blob) resolve(blob);
+        else reject(new Error("landing image jpeg failed"));
+      }, "image/jpeg", 0.92);
+    });
+  }
+  async function createLandingPageJpeg(previewHtml, imageFiles) {
+    let captureWidth = RESPONSIVE_BASE_WIDTH,
+      frame = document.createElement("iframe");
+    if (typeof window.html2canvas !== "function")
+      throw new Error("html2canvas is unavailable");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText =
+      "position:fixed;left:-100000px;top:0;width:" +
+      captureWidth +
+      "px;height:1px;border:0;pointer-events:none;";
+    document.body.appendChild(frame);
+    try {
+      await waitForFrameLoad(
+        frame,
+        previewHtmlWithEmbeddedImages(previewHtml, imageFiles),
+      );
+      let frameDocument = frame.contentDocument,
+        page = frameDocument && frameDocument.querySelector(".lp-page");
+      if (!frameDocument || !page)
+        throw new Error("landing image page not found");
+      await waitForFrameImages(frameDocument);
+      page
+        .querySelectorAll(".srno,.scancount,.scanTime")
+        .forEach(function (element) {
+          element.style.setProperty("visibility", "hidden", "important");
+        });
+      frameDocument.documentElement.style.cssText =
+        "width:" + captureWidth + "px;min-height:0;margin:0;padding:0;";
+      frameDocument.body.style.cssText =
+        "display:block;width:" +
+        captureWidth +
+        "px;min-height:0;margin:0;padding:0;overflow:hidden;";
+      page.style.setProperty("width", captureWidth + "px", "important");
+      page.style.setProperty("max-width", captureWidth + "px", "important");
+      page.style.setProperty("min-width", "0", "important");
+      page.style.setProperty("min-height", "0", "important");
+      page.style.setProperty("margin", "0", "important");
+      page.style.setProperty("--responsive-scale", "1");
+      await new Promise(function (resolve) {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(resolve);
+        });
+      });
+      let captureHeight = Math.max(
+          1,
+          Math.ceil(page.getBoundingClientRect().height),
+          Math.ceil(page.scrollHeight),
+        ),
+        outputScale = Math.min(2, 30000 / captureHeight),
+        canvas;
+      outputScale = Math.max(0.25, outputScale);
+      frame.style.height = captureHeight + "px";
+      canvas = await window.html2canvas(page, {
+        backgroundColor: "#ffffff",
+        scale: outputScale,
+        width: captureWidth,
+        height: captureHeight,
+        windowWidth: captureWidth,
+        windowHeight: captureHeight,
+        scrollX: 0,
+        scrollY: 0,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+      });
+      return canvasJpegBlob(canvas);
+    } finally {
+      frame.remove();
+    }
+  }
   function workspaceZipFilename() {
     let name = String(currentTemplate().name || "landing")
       .replace(/\s*(랜딩페이지|랜딩|landing\s*page|landing)\s*$/i, "")
@@ -4457,21 +4611,40 @@
     try {
       let bundle = await bundleLandingImages(jsp, template),
         previewHtml = buildPreviewHtmlFromJsp(bundle.jsp),
+        imageFileStem = isFake ? fakeFileStem : fileStem,
         zipFiles = [
           { name: jspFilename, content: bundle.jsp },
           { name: previewFilename, content: previewHtml },
           { name: "img/", content: new Uint8Array(0) },
         ].concat(bundle.files),
-        zip = createZipBlob(zipFiles);
+        landingImageFailed = false;
+      try {
+        let landingImage = await createLandingPageJpeg(
+          previewHtml,
+          bundle.files,
+        );
+        zipFiles.push({
+          name: "img/" + imageFileStem + ".jpg",
+          content: new Uint8Array(await landingImage.arrayBuffer()),
+        });
+      } catch (error) {
+        landingImageFailed = true;
+        if (window.console && console.error)
+          console.error("완성된 랜딩페이지 JPG 생성 실패:", error);
+      }
+      let zip = createZipBlob(zipFiles);
       triggerFileDownload(zip, "application/zip", zipFilename);
       commitDownloadVersion(template, downloadVersion);
       $("#downloadTypeModal").prop("hidden", true);
       toast(
         (isFake ? "가품" : "정품") +
           " JSP, 미리보기 HTML, 이미지 " +
-          bundle.files.length +
-          "개를 ZIP으로 다운로드했습니다." +
-          (bundle.failures ? " 불러오지 못한 이미지가 있습니다." : ""),
+           bundle.files.length +
+           "개를 ZIP으로 다운로드했습니다." +
+          (bundle.failures ? " 불러오지 못한 이미지가 있습니다." : "") +
+          (landingImageFailed
+            ? " 완성된 랜딩페이지 JPG는 생성하지 못했습니다."
+            : ""),
       );
     } catch (error) {
       toast("ZIP 파일을 생성하지 못했습니다. 다시 시도해 주세요.");

@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>랜딩페이지 생성기</title>
-  <link rel="stylesheet" href="css/style.css?v=20260724-120">
+  <link rel="stylesheet" href="css/style.css?v=20260727-124">
   <script defer src="js/jquery-3.7.1.min.js"></script>
-  <script defer src="js/translation.js?v=20260724-120"></script>
-  <script defer src="js/app.js?v=20260724-120"></script>
+  <script defer src="js/vendor/html2canvas.min.js?v=1.4.1"></script>
+  <script defer src="js/translation.js?v=20260727-124"></script>
+  <script defer src="js/app.js?v=20260727-124"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -65,7 +66,7 @@
       <aside class="left-panel panel-scroll">
         <section class="panel-section template-panel">
           <div class="section-heading-row">
-            <h2>랜딩페이지(기존 시안은 위에 추가 예정)</h2>
+            <h2>작업 리스트</h2>
           </div>
           <div class="template-grid" id="templateGrid"></div>
           <div class="template-carousel-nav" id="templateCarouselNav" hidden>
@@ -391,7 +392,7 @@
   <div class="modal-backdrop download-type-modal" id="downloadTypeModal" hidden>
     <div class="modal-card button-type-modal-card" role="dialog" aria-modal="true" aria-labelledby="downloadTypeModalTitle">
       <div class="modal-head"><h2 id="downloadTypeModalTitle">JSP 다운로드</h2><button type="button" class="modal-close" data-close-modal aria-label="닫기">×</button></div>
-      <p>다운로드할 랜딩페이지 유형을 선택하세요.</p>
+      <p>JSP, 미리보기 HTML, 완성된 랜딩페이지 JPG를 함께 다운로드합니다.</p>
       <div class="button-type-grid">
         <button type="button" class="button-type-card" data-download-type="authentic">
           <span class="button-type-icon">정품</span>

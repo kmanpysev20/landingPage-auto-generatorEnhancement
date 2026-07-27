@@ -2317,6 +2317,10 @@ img.lp-hero-background {
   gap: 12px;
   margin-top: 18px;
 }
+.button-type-grid .button-type-card:nth-of-type(2) .button-type-icon {
+  font-size : 22px;
+}
+
 .button-type-card {
   min-height: 132px;
   padding: 20px 14px;

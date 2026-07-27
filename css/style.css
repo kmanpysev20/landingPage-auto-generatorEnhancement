@@ -1853,6 +1853,14 @@ img.lp-hero-background {
 .lp-footer-text,
 .lp-generic-text {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+.lp-button-text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 .lp-button {
   display: inline-flex;

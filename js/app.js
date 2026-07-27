@@ -2137,7 +2137,7 @@
             (textType !== "normal"
               ? ' readonly aria-readonly="true" title="시스템 코드는 수정할 수 없습니다."'
               : "") +
-            ' maxlength="120" rows="2">' +
+            ' rows="2">' +
             safeText(
               textType === "scan-time"
                 ? formatScanDate(new Date())
@@ -2171,7 +2171,7 @@
             button.index +
             '">삭제</button></span></div><label class="field-label">버튼 텍스트</label><input type="text" class="dynamic-button-input" data-button-index="' +
             button.index +
-            '" data-button-field="text" maxlength="24" value="' +
+            '" data-button-field="text" value="' +
             safeAttr(button.text) +
             '"><label class="field-label">콘텐츠 순서</label><select class="dynamic-button-order" data-button-index="' +
             button.index +
@@ -2479,7 +2479,7 @@
       state.selectedElementKey = null;
       $("#selectedMoveLabel").text("요소 미선택");
       $("#positionHelp").text(
-        "요소를 클릭하고 Ctrl을 누른 채 다른 요소를 클릭하면 다중 선택할 수 있습니다.",
+        "요소를 클릭하고 Shift를 누른 채 다른 요소를 클릭하면 다중 선택할 수 있습니다.",
       );
       $("#positionFields").prop("hidden", true);
       $("#resetElementPositionBtn").prop("disabled", true);
@@ -2488,7 +2488,7 @@
     let p = getPosition(s, key);
     $("#selectedMoveLabel").text(numberedElementLabel(s, key));
     $("#positionHelp").text(
-      "섹션 바깥까지 이동할 수 있으며 최소 16px는 섹션에 걸쳐 있어야 합니다. Ctrl을 누르면 선택을 추가합니다.",
+      "섹션 바깥까지 이동할 수 있으며 최소 16px는 섹션에 걸쳐 있어야 합니다. Shift를 누르면 선택을 추가합니다.",
     );
     $("#positionFields").prop("hidden", false);
     $("#positionX").val(p.x);
@@ -2499,9 +2499,7 @@
     $(".char-count").each(function () {
       let id = $(this).data("for"),
         $f = $("#" + id);
-      $(this).text(
-        ($f.val() || "").length + " / " + ($f.attr("maxlength") || "—"),
-      );
+      $(this).text(($f.val() || "").length);
     });
   }
   function colorToHex(value, fallback) {
@@ -3829,7 +3827,7 @@
         ".lp-content.image-fit-section,.lp-footer.image-fit-section{display:flex;flex-direction:column;overflow:hidden}.lp-content.image-fit-section .lp-image-grid{flex:1 1 0;min-height:0}.lp-content.image-fit-section .lp-image-grid img{width:100%;height:100%;max-height:none;object-fit:cover}.lp-footer.image-fit-section>.lp-element-image{flex:1 1 0;align-self:stretch;width:100%;height:auto;min-height:0;max-height:none;object-fit:cover}";
     }
     css +=
-      ".lp-eyebrow,.lp-title,.lp-subtitle,.lp-footer-text,.lp-generic-text{white-space:pre-wrap}.lp-eyebrow{font-size:calc(14px * var(--responsive-scale,1))}.lp-title{font-size:calc(32px * var(--responsive-scale,1))}.lp-subtitle{font-size:calc(14px * var(--responsive-scale,1))}.lp-button-slot{position:relative;display:inline-flex;align-items:center;justify-content:center;width:calc(205px * var(--responsive-scale,1));height:calc(42px * var(--responsive-scale,1));flex:0 0 auto;overflow:visible}.lp-button{gap:calc(8px * var(--responsive-scale,1));min-width:calc(205px * var(--responsive-scale,1));min-height:calc(42px * var(--responsive-scale,1));font-size:calc(13px * var(--responsive-scale,1))}.lp-button-image{width:calc(22px * var(--responsive-scale,1));height:calc(22px * var(--responsive-scale,1))}.lp-generic-text{font-size:calc(14px * var(--responsive-scale,1))}.lp-content .lp-eyebrow{font-size:calc(11px * var(--responsive-scale,1))}.lp-content .lp-title{font-size:calc(21px * var(--responsive-scale,1))}.lp-content .lp-subtitle{font-size:calc(12px * var(--responsive-scale,1))}.lp-footer{font-size:calc(11px * var(--responsive-scale,1))}.lp-button-slot.lp-button-slot-product{width:calc(220px * var(--responsive-scale,1));height:calc(270px * var(--responsive-scale,1))}.lp-button.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;gap:0}";
+      ".lp-eyebrow,.lp-title,.lp-subtitle,.lp-footer-text,.lp-generic-text{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;min-width:0}.lp-button-text{overflow-wrap:anywhere;word-break:break-word;min-width:0}.lp-eyebrow{font-size:calc(14px * var(--responsive-scale,1))}.lp-title{font-size:calc(32px * var(--responsive-scale,1))}.lp-subtitle{font-size:calc(14px * var(--responsive-scale,1))}.lp-button-slot{position:relative;display:inline-flex;align-items:center;justify-content:center;width:calc(205px * var(--responsive-scale,1));height:calc(42px * var(--responsive-scale,1));flex:0 0 auto;overflow:visible}.lp-button{gap:calc(8px * var(--responsive-scale,1));min-width:calc(205px * var(--responsive-scale,1));min-height:calc(42px * var(--responsive-scale,1));font-size:calc(13px * var(--responsive-scale,1))}.lp-button-image{width:calc(22px * var(--responsive-scale,1));height:calc(22px * var(--responsive-scale,1))}.lp-generic-text{font-size:calc(14px * var(--responsive-scale,1))}.lp-content .lp-eyebrow{font-size:calc(11px * var(--responsive-scale,1))}.lp-content .lp-title{font-size:calc(21px * var(--responsive-scale,1))}.lp-content .lp-subtitle{font-size:calc(12px * var(--responsive-scale,1))}.lp-footer{font-size:calc(11px * var(--responsive-scale,1))}.lp-button-slot.lp-button-slot-product{width:calc(220px * var(--responsive-scale,1));height:calc(270px * var(--responsive-scale,1))}.lp-button.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;gap:0}";
     css +=
       "html{width:100%;height:100%;overflow:hidden;background:#fff}body{width:100%;height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;background:#fff}.lp-page.export-page{width:" +
       state.deviceWidth +
@@ -4228,46 +4226,48 @@
     });
     return sources;
   }
-  function imageExtension(blobType, source) {
-    let type = String(blobType || "").toLowerCase(),
-      matches = String(source || "").match(/\.([a-z0-9]{2,5})(?:[?#].*)?$/i),
-      sourceExtension = matches ? matches[1].toLowerCase() : "",
-      extensions = {
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/gif": "gif",
-        "image/webp": "webp",
-        "image/svg+xml": "svg",
-        "image/avif": "avif",
-        "image/bmp": "bmp",
+  function imageBlobAsJpeg(blob) {
+    if (String(blob.type || "").toLowerCase() === "image/jpeg")
+      return Promise.resolve(blob);
+    return new Promise(function (resolve, reject) {
+      let objectUrl = URL.createObjectURL(blob),
+        image = new Image();
+      function cleanup() {
+        URL.revokeObjectURL(objectUrl);
+      }
+      image.onload = function () {
+        try {
+          let width = image.naturalWidth || image.width,
+            height = image.naturalHeight || image.height,
+            canvas = document.createElement("canvas"),
+            context = canvas.getContext("2d");
+          if (!width || !height || !context)
+            throw new Error("invalid image size");
+          canvas.width = width;
+          canvas.height = height;
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, width, height);
+          context.drawImage(image, 0, 0, width, height);
+          canvas.toBlob(
+            function (jpegBlob) {
+              cleanup();
+              if (jpegBlob) resolve(jpegBlob);
+              else reject(new Error("jpeg conversion failed"));
+            },
+            "image/jpeg",
+            0.92,
+          );
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
       };
-    return extensions[type] || sourceExtension || "png";
-  }
-  function uniqueImageFilename(source, blobType, number, usedNames) {
-    let baseName = "";
-    if (!/^data:|^blob:/i.test(source)) {
-      try {
-        baseName = decodeURIComponent(
-          new URL(source, window.location.href).pathname.split("/").pop() || "",
-        );
-      } catch (ignore) {}
-    }
-    baseName = baseName
-      .replace(/[?#].*$/, "")
-      .replace(/[^a-z0-9._-]+/gi, "-")
-      .replace(/^-+|-+$/g, "");
-    let extension = imageExtension(blobType, source);
-    if (!baseName) baseName = "image-" + String(number).padStart(2, "0");
-    if (!/\.[a-z0-9]{2,5}$/i.test(baseName)) baseName += "." + extension;
-    let dotIndex = baseName.lastIndexOf("."),
-      stem = dotIndex > 0 ? baseName.slice(0, dotIndex) : baseName,
-      suffix = dotIndex > 0 ? baseName.slice(dotIndex) : "." + extension,
-      candidate = baseName,
-      duplicate = 2;
-    while (usedNames[candidate.toLowerCase()])
-      candidate = stem + "-" + duplicate++ + suffix;
-    usedNames[candidate.toLowerCase()] = true;
-    return candidate;
+      image.onerror = function () {
+        cleanup();
+        reject(new Error("image decode failed"));
+      };
+      image.src = objectUrl;
+    });
   }
   function replaceImageSource(markup, source, replacement) {
     let variants = [source, safeText(source), safeAttr(source)];
@@ -4276,11 +4276,10 @@
     });
     return markup;
   }
-  async function bundleLandingImages(jsp, template) {
+  async function bundleLandingImages(jsp, template, isFake) {
     let markup = String(jsp || ""),
       files = [],
       failures = 0,
-      usedNames = {},
       sources = templateImageSources(template);
     for (let i = 0; i < sources.length; i++) {
       let source = sources[i];
@@ -4293,12 +4292,11 @@
         let blob = await response.blob();
         if (!/^image\//i.test(blob.type || "image/unknown"))
           throw new Error("not an image");
-        let filename = uniqueImageFilename(
-            source,
-            blob.type,
-            i + 1,
-            usedNames,
-          ),
+        blob = await imageBlobAsJpeg(blob);
+        let filename =
+            (isFake ? "img-landing-expire-" : "img-landing-") +
+            String(files.length + 1).padStart(2, "0") +
+            ".jpg",
           zipPath = "img/" + filename,
           bytes = new Uint8Array(await blob.arrayBuffer());
         files.push({ name: zipPath, content: bytes });
@@ -4609,7 +4607,7 @@
     $("[data-download-type]").prop("disabled", true);
     toast("이미지를 포함한 ZIP 파일을 생성하고 있습니다.");
     try {
-      let bundle = await bundleLandingImages(jsp, template),
+      let bundle = await bundleLandingImages(jsp, template, isFake),
         previewHtml = buildPreviewHtmlFromJsp(bundle.jsp),
         imageFileStem = isFake ? fakeFileStem : fileStem,
         zipFiles = [
@@ -4758,7 +4756,7 @@
       if (e.button !== undefined && e.button !== 0) return;
       let key = String($(this).attr("data-editor-key") || "");
       if (!key) return;
-      selectElementFromEditor(key, e.ctrlKey || e.metaKey);
+      selectElementFromEditor(key, e.shiftKey);
     });
     $(document).on("click", ".template-card,.workspace-tab", function (e) {
       if (
@@ -5891,7 +5889,7 @@
         groupSelected = groupItems.every(function (item) {
           return isElementSelected(item.sectionId, item.key);
         }),
-        additive = e.ctrlKey || e.metaKey,
+        additive = e.shiftKey,
         index = selectionIndex(sectionId, key),
         pendingToggle = additive && groupSelected;
       if (additive && !groupSelected)
@@ -6090,7 +6088,7 @@
       )
         return;
       e.preventDefault();
-      let additive = e.ctrlKey || e.metaKey,
+      let additive = e.shiftKey,
         $box = $('<div class="canvas-selection-box" hidden></div>').appendTo(
           document.body,
         );

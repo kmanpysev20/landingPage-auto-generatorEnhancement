@@ -757,6 +757,7 @@ button {
 }
 .device-screen > .lp-page {
   min-height: 0;
+  overflow: hidden;
 }
 .device-screen::-webkit-scrollbar {
   display: none;
@@ -1538,7 +1539,7 @@ select:focus {
   --button-radius: 28px;
   --hero-overlay: 0.2;
   --responsive-scale: 1;
-  min-height: 100%;
+  min-height: 0;
   background: #fff;
   font-family: var(--page-font, "Noto Sans KR", "Noto Sans", sans-serif);
   color: #4b5563;
@@ -2546,12 +2547,14 @@ img.lp-hero-background {
 }
 .preview-overlay iframe {
   display: block;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  align-self: stretch;
   min-height: 0;
+  max-height: calc(100% - 62px);
   border: 0;
   width: 100%;
-  height: auto;
-  background: #fff;
+  height: 1px;
+  background: #eef0f4;
 }
 .toast {
   position: fixed;

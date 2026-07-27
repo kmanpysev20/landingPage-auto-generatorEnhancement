@@ -987,7 +987,10 @@
       if (!preview) return;
       preview.style.transform = "none";
       let naturalWidth = 365,
-        naturalHeight = Math.max(1, preview.scrollHeight);
+        naturalHeight = Math.max(
+          1,
+          visibleLandingSectionHeight(preview) || preview.offsetHeight,
+        );
       preview.style.transform =
         "scale(" +
         this.clientWidth / naturalWidth +

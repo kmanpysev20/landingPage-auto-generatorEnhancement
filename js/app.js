@@ -3856,7 +3856,7 @@
           ";min-height:0;background:#fff;font-family:var(--page-font);color:#4b5563;max-width:540px;margin:0 auto;box-shadow:0 0 35px rgba(0,0,0,.08)}" +
         '.lp-section{position:relative}.lp-hero{height:620px;background-position:center;background-size:cover;display:flex;align-items:flex-end;justify-content:center;color:#fff;text-align:center;overflow:visible}.lp-hero:before{content:"";position:absolute;inset:0;background:transparent;pointer-events:none}.lp-hero-content{position:relative;z-index:1;padding:0 28px 42px;width:100%}.lp-eyebrow{font-size:15px;font-weight:700;margin-bottom:6px}.lp-title{font-size:34px;line-height:1.13;margin:0;font-weight:900;letter-spacing:-1px}.lp-subtitle{font-size:15px;margin:10px 0 18px;line-height:1.55}.lp-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:220px;min-height:46px;padding:10px 24px;border-radius:var(--button-radius);background:#fff;color:#292d35;text-decoration:none;font-size:14px;font-weight:800}.lp-button-image{width:22px;height:22px;flex:0 0 auto;object-fit:contain}.lp-content{text-align:center;padding:31px 20px;background:var(--brand-sub)}.lp-content .lp-eyebrow{font-size:12px;color:var(--brand-main)}.lp-content .lp-title{font-size:24px}.lp-content .lp-subtitle{font-size:13px;color:#555b66}.lp-image-grid{display:block}.lp-image-grid img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:8px}.lp-footer{padding:22px;text-align:center;background:#111;color:#fff;font-size:12px}.lp-footer-text{display:inline-block}@media(max-width:560px){.lp-page{max-width:none;box-shadow:none}.lp-hero{height:calc(100vh - 100px);min-height:520px}}';
       css +=
-        ".lp-hero-background{position:absolute;inset:0;z-index:0;background-position:center;background-size:cover}.lp-hero:before{z-index:1}.lp-hero-content{z-index:2}.lp-element-image{max-width:100%;object-fit:cover}.lp-generic-text{display:block;margin:12px 20px;text-align:center}.lp-extra-texts{text-align:center}.lp-extra-texts .lp-generic-text{margin:8px 0}.lp-extra-images{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin:10px 0}.lp-extra-image{width:64px;height:64px;object-fit:contain}.lp-buttons{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin-top:13px;pointer-events:none}.lp-buttons .lp-button{margin:0}.lp-button-slot{pointer-events:none}.lp-button-slot .lp-button{pointer-events:auto}.lp-button-image{display:inline-block;width:22px;height:22px;margin:0;object-fit:contain}.lp-button-slot-product{width:220px;height:270px}.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;padding:0;gap:0;flex-direction:column;align-items:stretch;justify-content:flex-start;overflow:hidden}.lp-product-button .lp-button-image{display:block;width:100%;height:auto;min-height:0;flex:1 1 auto;object-fit:cover}.lp-product-button .lp-button-text{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;padding:10px;background:#fff;text-align:center;line-height:1.35;flex:0 0 auto}";
+        ".lp-hero-background{position:absolute;inset:0;z-index:0;background-position:center;background-size:cover}.lp-hero:before{z-index:1}.lp-hero-content{z-index:2}.lp-element-image{max-width:100%;object-fit:cover;background:transparent}.lp-generic-text{display:block;margin:12px 20px;text-align:center}.lp-extra-texts{text-align:center}.lp-extra-texts .lp-generic-text{margin:8px 0}.lp-extra-images{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin:10px 0}.lp-extra-image{width:64px;height:64px;object-fit:contain;background:transparent}.lp-buttons{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin-top:13px;pointer-events:none}.lp-buttons .lp-button{margin:0}.lp-button-slot{pointer-events:none}.lp-button-slot .lp-button{pointer-events:auto}.lp-button-image{display:inline-block;width:22px;height:22px;margin:0;object-fit:contain;background:transparent}.lp-button-slot-product{width:220px;height:270px}.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;padding:0;gap:0;flex-direction:column;align-items:stretch;justify-content:flex-start;overflow:hidden}.lp-product-button .lp-button-image{display:block;width:100%;height:auto;min-height:0;flex:1 1 auto;object-fit:cover}.lp-product-button .lp-button-text{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;padding:10px;background:#fff;text-align:center;line-height:1.35;flex:0 0 auto}";
       css +=
         ".lp-content.image-fit-section,.lp-footer.image-fit-section{display:flex;flex-direction:column;overflow:hidden}.lp-content.image-fit-section .lp-image-grid{flex:1 1 0;min-height:0}.lp-content.image-fit-section .lp-image-grid img{width:100%;height:100%;max-height:none;object-fit:cover}.lp-footer.image-fit-section>.lp-element-image{flex:1 1 0;align-self:stretch;width:100%;height:auto;min-height:0;max-height:none;object-fit:cover}";
     }
@@ -4296,48 +4296,24 @@
     });
     return sources;
   }
-  function imageBlobAsJpeg(blob) {
-    if (String(blob.type || "").toLowerCase() === "image/jpeg")
-      return Promise.resolve(blob);
-    return new Promise(function (resolve, reject) {
-      let objectUrl = URL.createObjectURL(blob),
-        image = new Image();
-      function cleanup() {
-        URL.revokeObjectURL(objectUrl);
-      }
-      image.onload = function () {
-        try {
-          let width = image.naturalWidth || image.width,
-            height = image.naturalHeight || image.height,
-            canvas = document.createElement("canvas"),
-            context = canvas.getContext("2d");
-          if (!width || !height || !context)
-            throw new Error("invalid image size");
-          canvas.width = width;
-          canvas.height = height;
-          context.fillStyle = "#ffffff";
-          context.fillRect(0, 0, width, height);
-          context.drawImage(image, 0, 0, width, height);
-          canvas.toBlob(
-            function (jpegBlob) {
-              cleanup();
-              if (jpegBlob) resolve(jpegBlob);
-              else reject(new Error("jpeg conversion failed"));
-            },
-            "image/jpeg",
-            0.92,
-          );
-        } catch (error) {
-          cleanup();
-          reject(error);
-        }
+  function bundledImageExtension(blob, source) {
+    let mimeType = String(blob.type || "").toLowerCase().split(";")[0],
+      mimeExtensions = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/gif": "gif",
+        "image/webp": "webp",
+        "image/svg+xml": "svg",
+        "image/avif": "avif",
+        "image/bmp": "bmp",
       };
-      image.onerror = function () {
-        cleanup();
-        reject(new Error("image decode failed"));
-      };
-      image.src = objectUrl;
-    });
+    if (mimeExtensions[mimeType]) return mimeExtensions[mimeType];
+    let match = String(source || "")
+      .split(/[?#]/)[0]
+      .match(/\.([a-z0-9]+)$/i);
+    return match && /^(?:jpe?g|png|gif|webp|svg|avif|bmp)$/i.test(match[1])
+      ? match[1].toLowerCase().replace("jpeg", "jpg")
+      : "png";
   }
   function replaceImageSource(markup, source, replacement) {
     let variants = [source, safeText(source), safeAttr(source)];
@@ -4362,11 +4338,12 @@
         let blob = await response.blob();
         if (!/^image\//i.test(blob.type || "image/unknown"))
           throw new Error("not an image");
-        blob = await imageBlobAsJpeg(blob);
-        let filename =
+        let extension = bundledImageExtension(blob, source),
+          filename =
             (isFake ? "img-landing-expire-" : "img-landing-") +
             String(files.length + 1).padStart(2, "0") +
-            ".jpg",
+            "." +
+            extension,
           zipPath = "img/" + filename,
           bytes = new Uint8Array(await blob.arrayBuffer());
         files.push({ name: zipPath, content: bytes });

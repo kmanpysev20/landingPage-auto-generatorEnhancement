@@ -1897,6 +1897,7 @@ img.lp-hero-background {
   height: calc(22px * var(--responsive-scale));
   flex: 0 0 auto;
   object-fit: fill;
+  background: transparent;
 }
 .lp-button-background-image {
   position: absolute;
@@ -2110,6 +2111,7 @@ img.lp-hero-background {
   width: 100%;
   height: auto;
   flex: 0 0 auto;
+  background: transparent;
 }
 .lp-content .lp-eyebrow {
   font-size: calc(11px * var(--responsive-scale));
@@ -2132,7 +2134,11 @@ img.lp-hero-background {
   width: 100%;
   object-fit: fill;
   border-radius: calc(8px * var(--responsive-scale));
-  background: #fff;
+  background: transparent;
+}
+
+.lp-element-image {
+  background: transparent;
 }
 .lp-content.image-fit-section,
 .lp-footer.image-fit-section {

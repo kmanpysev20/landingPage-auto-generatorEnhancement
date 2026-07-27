@@ -6850,6 +6850,54 @@
       return value;
     }
     let spacingEditInput = null;
+    function spacingLines(items, axis) {
+      let crossCenter = function (item) {
+          return axis === "x"
+            ? (item.rect.top + item.rect.bottom) / 2
+            : (item.rect.left + item.rect.right) / 2;
+        },
+        crossSize = function (item) {
+          return axis === "x" ? item.rect.height : item.rect.width;
+        },
+        lines = [];
+      items
+        .slice()
+        .sort(function (a, b) {
+          return crossCenter(a) - crossCenter(b);
+        })
+        .forEach(function (item) {
+          let center = crossCenter(item),
+            size = crossSize(item),
+            bestLine = null,
+            bestDistance = Infinity;
+          lines.forEach(function (line) {
+            let distance = Math.abs(center - line.crossCenter),
+              threshold = (size + line.averageCrossSize) * 0.35;
+            if (distance <= threshold && distance < bestDistance) {
+              bestLine = line;
+              bestDistance = distance;
+            }
+          });
+          if (!bestLine) {
+            lines.push({
+              items: [item],
+              crossCenter: center,
+              averageCrossSize: size,
+            });
+            return;
+          }
+          bestLine.items.push(item);
+          bestLine.crossCenter =
+            bestLine.items.reduce(function (sum, lineItem) {
+              return sum + crossCenter(lineItem);
+            }, 0) / bestLine.items.length;
+          bestLine.averageCrossSize =
+            bestLine.items.reduce(function (sum, lineItem) {
+              return sum + crossSize(lineItem);
+            }, 0) / bestLine.items.length;
+        });
+      return lines;
+    }
     function applySelectedElementGap(axis, inputNode) {
       let entries = selectedEntries().filter(function (entry) {
         return entry.node && $(entry.node).is(":visible");
@@ -6880,57 +6928,57 @@
             ? sectionRect.width / sectionNode.offsetWidth
             : 1;
         scale = scale || 1;
-        let ordered = group
-          .map(function (entry) {
+        let items = group.map(function (entry) {
             return { entry: entry, rect: entry.node.getBoundingClientRect() };
-          })
-          .sort(function (a, b) {
-            return axis === "x"
-              ? (a.rect.left + a.rect.right) / 2 -
-                  (b.rect.left + b.rect.right) / 2
-              : (a.rect.top + a.rect.bottom) / 2 -
-                  (b.rect.top + b.rect.bottom) / 2;
-          });
-        let gap = gapValue * scale,
-          totalSize = ordered.reduce(function (sum, item) {
-            return sum + (axis === "x" ? item.rect.width : item.rect.height);
-          }, 0);
-        totalSize += gap * (ordered.length - 1);
-        let groupStart = Math.min.apply(
-            null,
-            ordered.map(function (item) {
-              return axis === "x" ? item.rect.left : item.rect.top;
-            }),
-          ),
-          groupEnd = Math.max.apply(
-            null,
-            ordered.map(function (item) {
-              return axis === "x" ? item.rect.right : item.rect.bottom;
-            }),
-          ),
+          }),
+          lines = spacingLines(items, axis),
+          gap = gapValue * scale,
           sectionStart = axis === "x" ? sectionRect.left : sectionRect.top,
           sectionEnd = axis === "x" ? sectionRect.right : sectionRect.bottom,
           inset = 8 * scale,
-          available = sectionEnd - sectionStart - inset * 2,
-          cursor = (groupStart + groupEnd - totalSize) / 2;
-        if (totalSize <= available)
-          cursor = Math.max(
-            sectionStart + inset,
-            Math.min(sectionEnd - inset - totalSize, cursor),
-          );
-        else cursor = (sectionStart + sectionEnd - totalSize) / 2;
-        ordered.forEach(function (item) {
-          let currentStart = axis === "x" ? item.rect.left : item.rect.top,
-            delta = (cursor - currentStart) / scale,
-            position = getPosition(item.entry.section, item.entry.key);
-          setPosition(
-            item.entry.section,
-            item.entry.key,
-            axis === "x" ? position.x + delta : position.x,
-            axis === "y" ? position.y + delta : position.y,
-          );
-          cursor +=
-            (axis === "x" ? item.rect.width : item.rect.height) + gap;
+          available = sectionEnd - sectionStart - inset * 2;
+        lines.forEach(function (line) {
+          let ordered = line.items.slice().sort(function (a, b) {
+              return axis === "x"
+                ? a.rect.left - b.rect.left
+                : a.rect.top - b.rect.top;
+            }),
+            totalSize = ordered.reduce(function (sum, item) {
+              return sum + (axis === "x" ? item.rect.width : item.rect.height);
+            }, 0);
+          totalSize += gap * (ordered.length - 1);
+          let lineStart = Math.min.apply(
+              null,
+              ordered.map(function (item) {
+                return axis === "x" ? item.rect.left : item.rect.top;
+              }),
+            ),
+            lineEnd = Math.max.apply(
+              null,
+              ordered.map(function (item) {
+                return axis === "x" ? item.rect.right : item.rect.bottom;
+              }),
+            ),
+            cursor = (lineStart + lineEnd - totalSize) / 2;
+          if (totalSize <= available)
+            cursor = Math.max(
+              sectionStart + inset,
+              Math.min(sectionEnd - inset - totalSize, cursor),
+            );
+          else cursor = (sectionStart + sectionEnd - totalSize) / 2;
+          ordered.forEach(function (item) {
+            let currentStart = axis === "x" ? item.rect.left : item.rect.top,
+              delta = (cursor - currentStart) / scale,
+              position = getPosition(item.entry.section, item.entry.key);
+            setPosition(
+              item.entry.section,
+              item.entry.key,
+              axis === "x" ? position.x + delta : position.x,
+              axis === "y" ? position.y + delta : position.y,
+            );
+            cursor +=
+              (axis === "x" ? item.rect.width : item.rect.height) + gap;
+          });
         });
       });
       renderPage();

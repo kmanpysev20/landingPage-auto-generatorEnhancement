@@ -2334,6 +2334,10 @@ img.lp-hero-background {
   font-size : 22px;
 }
 
+.text-grid4 .button-type-card:nth-of-type(2) .button-type-icon {
+  font-size : 16px;
+}
+
 .button-type-card {
   min-height: 132px;
   padding: 20px 14px;

@@ -2520,6 +2520,7 @@
       );
     } else $("#gridLayoutActions").empty();
     $("#bringElementToFrontBtn").prop("disabled", count < 1);
+    $("#sendElementToBackBtn").prop("disabled", count < 1);
     $("#copySelectedElementsBtn").prop("disabled", count < 1);
     $("#pasteElementsBtn").prop(
       "disabled",
@@ -6620,6 +6621,40 @@
         entries.length > 1
           ? "선택한 요소들을 맨 위로 올렸습니다."
           : "선택 요소를 맨 위로 올렸습니다.",
+      );
+    });
+    $("#sendElementToBackBtn").on("click", function () {
+      let entries = selectedEntries();
+      if (!entries.length) return;
+      mutateWithHistory(function () {
+        let groups = {};
+        entries.forEach(function (entry) {
+          if (!groups[entry.sectionId]) groups[entry.sectionId] = [];
+          groups[entry.sectionId].push(entry);
+        });
+        Object.keys(groups).forEach(function (sectionId) {
+          let section = groups[sectionId][0].section,
+            selectedKeys = new Set(
+              groups[sectionId].map(function (entry) {
+                return entry.key;
+              }),
+            );
+          section.elementStyles = section.elementStyles || {};
+          availableMoveKeys(section).forEach(function (key) {
+            section.elementStyles[key] = section.elementStyles[key] || {};
+            if (selectedKeys.has(key))
+              section.elementStyles[key].zIndex = 1;
+            else if (
+              (Number(section.elementStyles[key].zIndex) || 1) < 2
+            )
+              section.elementStyles[key].zIndex = 2;
+          });
+        });
+      });
+      toast(
+        entries.length > 1
+          ? "선택한 요소들을 맨 뒤로 내렸습니다."
+          : "선택 요소를 맨 뒤로 내렸습니다.",
       );
     });
     $("#reverseHorizontalOrderBtn").on("click", function () {

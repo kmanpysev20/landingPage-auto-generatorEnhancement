@@ -1253,28 +1253,6 @@
         ";min-height:0;";
     return attrs + (css ? ' style="' + safeAttr(css) + '"' : "");
   }
-  function jspSerialSectionBackgroundCss(s, exportMode) {
-    if (exportMode !== "jsp") return "";
-    let hasSerialNumber = (s.extraTextTypes || []).some(function (textType) {
-        return textType === "srno";
-      }),
-      backgroundColor = String(
-        (s.customStyle && s.customStyle.backgroundColor) || "",
-      )
-        .replace(/\s+/g, "")
-        .toLowerCase();
-    if (!hasSerialNumber) return "";
-    if (
-      backgroundColor &&
-      backgroundColor !== "transparent" &&
-      backgroundColor !== "#fff" &&
-      backgroundColor !== "#ffffff" &&
-      backgroundColor !== "rgb(255,255,255)" &&
-      backgroundColor !== "rgba(255,255,255,1)"
-    )
-      return "";
-    return "background-color:#000000;";
-  }
   function getPosition(s, key) {
     s.positions = s.positions || {};
     let p = s.positions[key] || { x: 0, y: 0 };
@@ -1928,11 +1906,7 @@
         '<section class="' +
         cls +
         'lp-content"' +
-        sectionAttrs(
-          s,
-          exportMode,
-          jspSerialSectionBackgroundCss(s, exportMode),
-        ) +
+        sectionAttrs(s, exportMode) +
         ">" +
         controls +
         renderExtraShapes(s, exportMode) +

@@ -744,13 +744,8 @@
       sectionNode,
     );
   }
-  function fitImageToSection(section, key, node, axis) {
-    if (
-      !section ||
-      !node ||
-      (key !== "image" && !/^extraImage\d+$/.test(key))
-    )
-      return false;
+  function fitElementToSection(section, key, node) {
+    if (!section || !node) return false;
     let currentWidth = node.offsetWidth,
       currentHeight = node.offsetHeight,
       sectionNode = $(node).closest(".lp-section")[0];
@@ -762,35 +757,20 @@
       targetWidth,
       targetHeight,
       position = getPosition(section, key);
-    if (axis === "vertical") {
-      targetHeight =
-        Math.round(
-          (sectionNode.offsetHeight / layoutScale / effectScale) * 100,
-        ) / 100;
-      targetWidth =
-        Math.round(targetHeight * (currentWidth / currentHeight) * 100) / 100;
-    } else {
-      targetWidth =
-        Math.round(
-          (sectionNode.offsetWidth / layoutScale / effectScale) * 100,
-        ) / 100;
-      targetHeight =
-        Math.round(targetWidth * (currentHeight / currentWidth) * 100) / 100;
-    }
+    targetWidth =
+      Math.round(
+        (sectionNode.offsetWidth / layoutScale / effectScale) * 100,
+      ) / 100;
+    targetHeight =
+      Math.round(targetWidth * (currentHeight / currentWidth) * 100) / 100;
     section.elementStyles = section.elementStyles || {};
     style = section.elementStyles[key] || (section.elementStyles[key] = {});
     style.width = targetWidth;
     style.height = targetHeight;
-    if (axis === "vertical") style.fitSectionHeight = true;
-    setPosition(
-      section,
-      key,
-      axis === "horizontal" ? 0 : position.x,
-      axis === "vertical" ? 0 : position.y,
-    );
+    setPosition(section, key, 0, position.y);
     return true;
   }
-  function alignFittedImageToSection(section, key, axis) {
+  function alignFittedElementToSection(section, key) {
     let node = null;
     $("#deviceScreen .canvas-movable").each(function () {
       let $node = $(this);
@@ -810,20 +790,12 @@
         : 1,
       position = getPosition(section, key);
     scale = scale || 1;
-    if (axis === "vertical")
-      setPosition(
-        section,
-        key,
-        position.x,
-        position.y + (sectionRect.top - nodeRect.top) / scale,
-      );
-    else
-      setPosition(
-        section,
-        key,
-        position.x + (sectionRect.left - nodeRect.left) / scale,
-        position.y,
-      );
+    setPosition(
+      section,
+      key,
+      position.x + (sectionRect.left - nodeRect.left) / scale,
+      position.y,
+    );
     position = getPosition(section, key);
     $(node).css(
       "transform",
@@ -4750,19 +4722,17 @@
       isSectionHeightChange = target.kind === "section" && field === "height",
       fittedImageEntries = isSectionHeightChange
         ? target.items.reduce(function (entries, item) {
-            ["image"]
-              .concat(
-                (item.section.extraImages || []).map(function (_, index) {
-                  return "extraImage" + index;
-                }),
-              )
-              .forEach(function (key) {
-                let style =
-                  item.section.elementStyles &&
-                  item.section.elementStyles[key];
-                if (style && style.fitSectionHeight)
-                  entries.push({ sectionId: item.section.id, key: key });
+            let section = item.section;
+            let keys = [];
+            if (section) {
+              Object.keys(section.elementStyles || {}).forEach(function (key) {
+                if (section.elementStyles[key] && section.elementStyles[key].fitSectionHeight)
+                  keys.push(key);
               });
+            }
+            keys.forEach(function (key) {
+              entries.push({ sectionId: section.id, key: key });
+            });
             return entries;
           }, [])
         : [],
@@ -4797,7 +4767,7 @@
           return String(item.id) === String(entry.sectionId);
         });
         if (section)
-          alignFittedImageToSection(section, entry.key, "vertical");
+          alignFittedElementToSection(section, entry.key);
       });
     if (stableAnchors.length) {
       restoreStableElementAnchors(stableAnchors);
@@ -5374,10 +5344,10 @@
         [{ sectionId: s.id, key: "image" }],
       );
       pushHistory();
-      if (!fitImageToSection(s, "image", node, "vertical")) return;
+      if (!fitElementToSection(s, "image", node)) return;
       style.fitSectionHeight = true;
       renderPage();
-      alignFittedImageToSection(s, "image", "vertical");
+      alignFittedElementToSection(s, "image");
       restoreStableElementAnchors(stableAnchors);
       renderResizeHandle();
       renderEditor();
@@ -5563,10 +5533,10 @@
           [{ sectionId: s.id, key: key }],
         );
         pushHistory();
-        if (!fitImageToSection(s, key, node, "vertical")) return;
+        if (!fitElementToSection(s, key, node)) return;
         style.fitSectionHeight = true;
         renderPage();
-        alignFittedImageToSection(s, key, "vertical");
+        alignFittedElementToSection(s, key);
         restoreStableElementAnchors(stableAnchors);
         renderResizeHandle();
         renderEditor();
@@ -6544,8 +6514,6 @@
         let $handle = $(this),
           sectionId = $handle.attr("data-section-id"),
           key = $handle.attr("data-resize-key"),
-          direction = $handle.attr("data-resize-direction"),
-          axis = /[ns]/.test(direction) ? "vertical" : "horizontal",
           section = currentTemplate().sections.find(function (item) {
             return String(item.id) === String(sectionId);
           }),
@@ -6554,21 +6522,15 @@
               String(item.sectionId) === String(sectionId) && item.key === key
             );
           });
-        if (
-          !section ||
-          !entry ||
-          !entry.node ||
-          (key !== "image" && !/^extraImage\d+$/.test(key))
-        )
-          return;
+        if (!section || !entry || !entry.node) return;
         let stableAnchors = captureStableElementAnchors(
           [sectionId],
           [{ sectionId: sectionId, key: key }],
         );
         pushHistory();
-        if (!fitImageToSection(section, key, entry.node, axis)) return;
+        if (!fitElementToSection(section, key, entry.node)) return;
         renderPage();
-        alignFittedImageToSection(section, key, axis);
+        alignFittedElementToSection(section, key);
         restoreStableElementAnchors(stableAnchors);
         renderResizeHandle();
         renderEditor();

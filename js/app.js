@@ -3071,6 +3071,38 @@
     restoreStableElementAnchors(anchors);
     renderResizeHandle();
   }
+  function afterRenderedImageLayout(sectionId, key, callback) {
+    requestAnimationFrame(function () {
+      let node = null;
+      $("#deviceScreen .canvas-movable").each(function () {
+        let $node = $(this);
+        if (
+          String($node.closest(".lp-section").data("section-id")) ===
+            String(sectionId) &&
+          String($node.data("move-key")) === String(key)
+        )
+          node = this;
+      });
+      function afterLayout() {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(callback);
+        });
+      }
+      if (!node || node.complete) {
+        afterLayout();
+        return;
+      }
+      $(node).one("load.stableReplacement error.stableReplacement", afterLayout);
+    });
+  }
+  function restoreAnchorsAfterImageReplacement(sectionId, key, anchors) {
+    afterRenderedImageLayout(sectionId, key, function () {
+      restoreSectionMutationAnchors(anchors);
+      renderEditor();
+      renderStyle();
+      markChanged();
+    });
+  }
   function freezeFittedImagesBeforeElementDeletion(anchors) {
     (anchors || []).forEach(function (anchor) {
       if (
@@ -5195,20 +5227,28 @@
       },
     );
     $("#imageUpload").on("change", function () {
-      let file = this.files && this.files[0];
+      let file = this.files && this.files[0],
+        s = currentSection();
       if (!file) return;
+      if (!s) return;
       if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
         toast("이미지는 " + MAX_IMAGE_UPLOAD_MB + "MB 이하로 선택하세요.");
         return;
       }
-      let reader = new FileReader();
+      let sectionId = s.id,
+        stableAnchors = captureSectionMutationAnchors(s, ["image"]),
+        reader = new FileReader();
       reader.onload = function (e) {
         pushHistory();
-        let s = currentSection();
         s.image = e.target.result;
         renderPage();
         renderEditor();
         markChanged();
+        restoreAnchorsAfterImageReplacement(
+          sectionId,
+          "image",
+          stableAnchors,
+        );
       };
       reader.readAsDataURL(file);
       this.value = "";
@@ -5357,23 +5397,32 @@
       ".dynamic-extra-image",
       function () {
         let file = this.files && this.files[0],
-          index = Number($(this).data("extra-image-index"));
+          index = Number($(this).data("extra-image-index")),
+          s = currentSection();
         if (!file) return;
+        if (!s || !Number.isInteger(index) || index < 0) return;
         if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
           toast("이미지는 " + MAX_IMAGE_UPLOAD_MB + "MB 이하로 선택하세요.");
           this.value = "";
           return;
         }
-        let input = this,
+        let key = "extraImage" + index,
+          sectionId = s.id,
+          stableAnchors = captureSectionMutationAnchors(s, [key]),
+          input = this,
           reader = new FileReader();
         reader.onload = function (e) {
           pushHistory();
-          let s = currentSection();
           s.extraImages = s.extraImages || [];
           s.extraImages[index] = e.target.result;
           renderPage();
           renderEditor();
           markChanged();
+          restoreAnchorsAfterImageReplacement(
+            sectionId,
+            key,
+            stableAnchors,
+          );
           input.value = "";
         };
         reader.readAsDataURL(file);

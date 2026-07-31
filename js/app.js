@@ -242,19 +242,28 @@
       if (sections[i].id === state.selectedSectionId) return sections[i];
     return null;
   }
+  function filterWorkspaceNameCharacters(value) {
+    return String(value == null ? "" : value)
+      .replace(/[^A-Za-z0-9 _-]/g, "")
+      .replace(/\s+/g, " ")
+      .slice(0, 30);
+  }
+  function normalizeWorkspaceName(value) {
+    return filterWorkspaceNameCharacters(value).trim();
+  }
   function nextWorkspaceName() {
     let used = Object.keys(state.templates || {}).map(function (key) {
         return String(state.templates[key].name || "").trim();
       }),
       number = 1;
-    while (used.indexOf("작업" + number) >= 0) number += 1;
-    return "작업" + number;
+    while (used.indexOf("WORK" + number) >= 0) number += 1;
+    return "WORK" + number;
   }
   function uniqueWorkspaceName(baseName) {
     let used = Object.keys(state.templates || {}).map(function (key) {
         return String(state.templates[key].name || "").trim();
       }),
-      base = String(baseName || "작업").trim() || "작업",
+      base = normalizeWorkspaceName(baseName) || "WORK",
       name = base,
       number = 2;
     while (used.indexOf(name) >= 0) name = base + " " + number++;
@@ -330,7 +339,7 @@
     pushHistory();
     let key = uid("workspace"),
       copy = clone(source),
-      name = uniqueWorkspaceName((source.name || "작업") + " 복사본");
+      name = uniqueWorkspaceName((source.name || "WORK") + " COPY");
     copy.id = key;
     copy.name = name;
     copy.short = name;
@@ -387,6 +396,17 @@
     selection.removeAllRanges();
     selection.addRange(range);
   }
+  function filterWorkspaceNameInput(element) {
+    let filtered = filterWorkspaceNameCharacters($(element).text());
+    if (filtered === $(element).text()) return;
+    $(element).text(filtered);
+    let selection = window.getSelection(),
+      range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
   function finishWorkspaceRename(element) {
     let $name = $(element),
       key = String($name.attr("data-workspace-key") || ""),
@@ -396,11 +416,9 @@
       cancelled = $name.attr("data-rename-cancelled") === "true",
       name = cancelled
         ? original
-        : String($name.text() || "")
-            .replace(/\s+/g, " ")
-            .trim()
-            .slice(0, 30);
-    if (!name) name = original || nextWorkspaceName();
+        : normalizeWorkspaceName($name.text());
+    if (!name)
+      name = normalizeWorkspaceName(original) || nextWorkspaceName();
     $name.removeAttr("contenteditable").removeClass("editing");
     if (name === String(workspace.name || "")) {
       renderTabs();
@@ -1045,7 +1063,7 @@
         (key === state.activeTemplate ? "active" : "") +
         '" role="button" tabindex="0" data-template="' +
         key +
-        '" title="이름을 더블클릭하면 수정할 수 있습니다"><span class="tab-dot" style="background:' +
+        '" title="이름을 더블클릭하면 영문으로 수정할 수 있습니다"><span class="tab-dot" style="background:' +
         t.dot +
         '"></span><span class="workspace-tab-name" data-workspace-key="' +
         key +
@@ -4962,7 +4980,7 @@
       imported = clone(payload.template),
       key = uid("workspace"),
       importedName = uniqueWorkspaceName(
-        String(imported.name || "가져온 작업").trim() || "가져온 작업",
+        normalizeWorkspaceName(imported.name) || "IMPORTED",
       );
     pushHistory();
     imported.id = key;
@@ -5285,6 +5303,19 @@
         this.blur();
       }
     });
+    $(document).on(
+      "input compositionend",
+      ".workspace-tab-name[contenteditable=true]",
+      function (e) {
+        if (
+          e.type === "input" &&
+          e.originalEvent &&
+          e.originalEvent.isComposing
+        )
+          return;
+        filterWorkspaceNameInput(this);
+      },
+    );
     $(document).on("blur", ".workspace-tab-name[contenteditable=true]", function () {
       finishWorkspaceRename(this);
     });

@@ -4137,11 +4137,11 @@
       ".lp-eyebrow,.lp-title,.lp-subtitle,.lp-footer-text,.lp-generic-text{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;min-width:0}.lp-button-text{overflow-wrap:anywhere;word-break:break-word;min-width:0}.lp-eyebrow{font-size:calc(14px * var(--responsive-scale,1))}.lp-title{font-size:calc(32px * var(--responsive-scale,1))}.lp-subtitle{font-size:calc(14px * var(--responsive-scale,1))}.lp-button-slot{position:relative;display:inline-flex;align-items:center;justify-content:center;width:calc(205px * var(--responsive-scale,1));height:calc(42px * var(--responsive-scale,1));flex:0 0 auto;overflow:visible}.lp-button{gap:calc(8px * var(--responsive-scale,1));min-width:calc(205px * var(--responsive-scale,1));min-height:calc(42px * var(--responsive-scale,1));font-size:calc(13px * var(--responsive-scale,1))}.lp-button-image{width:calc(22px * var(--responsive-scale,1));height:calc(22px * var(--responsive-scale,1))}.lp-generic-text{font-size:calc(14px * var(--responsive-scale,1))}.lp-content .lp-eyebrow{font-size:calc(11px * var(--responsive-scale,1))}.lp-content .lp-title{font-size:calc(21px * var(--responsive-scale,1))}.lp-content .lp-subtitle{font-size:calc(12px * var(--responsive-scale,1))}.lp-footer{font-size:calc(11px * var(--responsive-scale,1))}.lp-button-slot.lp-button-slot-product{width:calc(220px * var(--responsive-scale,1));height:calc(270px * var(--responsive-scale,1))}.lp-button.lp-product-button{width:100%;height:100%;min-width:0;min-height:0;gap:0}";
     css += ".lp-rolling-slide{object-fit:fill}";
     css +=
-      "html{width:100%;min-height:0;overflow-x:hidden;overflow-y:auto;background:#eef0f4}body{width:100%;min-height:0;overflow:visible;background:#eef0f4}.lp-page.export-page{width:" +
+      ":root{color-scheme:only light}html{width:100%;min-height:0;overflow-x:hidden;overflow-y:auto;background:#eef0f4}body{width:100%;min-height:0;overflow:visible;background:#eef0f4}.lp-page.export-page{width:" +
       state.deviceWidth +
       "px;max-width:100%;min-height:0;margin:0 auto;overflow:hidden;box-shadow:0 0 35px rgba(0,0,0,.08)}";
     return (
-      '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' +
+      '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' +
       safeText(t.name) +
       " 랜딩페이지</title><style>" +
       css +
@@ -4400,6 +4400,7 @@
     let css = minifyCssForDownload(
       convertResponsiveValuesForDownload(
         "*{box-sizing:border-box;list-style:none;margin:0;padding:0;border:none;}" +
+          ":root{color-scheme:only light;}" +
           "html,body{width:100%;min-height:100%;background:#fff;}" +
           "body{display:flex;justify-content:center;align-items:flex-start;overflow-x:auto;}" +
           renderedLandingPageCss() +
@@ -4430,6 +4431,8 @@
       '<head>',
       '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">',
       '<meta name="robots" content="noindex, nofollow">',
+      '<meta name="color-scheme" content="light only">',
+      '<meta name="supported-color-schemes" content="light">',
       '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />',
       '<title>' + safeText(pageTitle) + '</title>',
       '<style>',

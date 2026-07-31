@@ -106,14 +106,6 @@ button {
   top: -2px;
   border: 3px solid #fff;
 }
-.beta {
-  font-size: 12px;
-  font-weight: 700;
-  color: #6841e8;
-  background: #f0ebff;
-  padding: 4px 7px;
-  border-radius: 5px;
-}
 .top-actions {
   gap: 10px;
   flex: 0 0 auto;

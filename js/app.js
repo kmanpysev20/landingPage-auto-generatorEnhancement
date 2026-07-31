@@ -40,6 +40,7 @@
   let MAX_IMAGE_UPLOAD_BYTES = MAX_IMAGE_UPLOAD_MB * 1024 * 1024;
   let translationController = null;
   let workspaceCarouselPage = 0;
+  let rollingImageTimers = [];
   let uidSeq = 1;
   function uid(prefix) {
     return (prefix || "s") + "_" + Date.now().toString(36) + "_" + uidSeq++;
@@ -123,6 +124,10 @@
     s.extraTextTypes = [];
     s.extraButtons = [];
     s.extraImages = [];
+    s.extraImageTypes = [];
+    s.extraImageSlides = [];
+    s.extraImageAutoplay = [];
+    s.extraImageIntervals = [];
     s.extraShapes = [];
     s.elementGroups = [];
     s.extraImageWidthVersion = 2;
@@ -933,6 +938,7 @@
   function renderAll() {
     renderTemplates();
     renderTabs();
+    renderHeaderRound();
     renderSectionList();
     renderPage();
     renderEditor();
@@ -941,6 +947,12 @@
     setZoom();
     updateUndoRedo();
     if (translationController) translationController.updateUi();
+  }
+  function renderHeaderRound() {
+    let template = currentTemplate();
+    $("#headerRoundInput").val(
+      template ? String(template.roundLabel || "") : "",
+    );
   }
   function renderTemplatePreview(t) {
     let html =
@@ -1486,6 +1498,21 @@
         template.workspaceNameEditableVersion = 1;
       }
       (template.sections || []).forEach(function (section) {
+        section.extraImages = section.extraImages || [];
+        section.extraImageTypes = section.extraImageTypes || [];
+        section.extraImageSlides = section.extraImageSlides || [];
+        section.extraImageAutoplay = section.extraImageAutoplay || [];
+        section.extraImageIntervals = section.extraImageIntervals || [];
+        section.extraImages.forEach(function (_, index) {
+          if (!section.extraImageTypes[index])
+            section.extraImageTypes[index] = "normal";
+          if (!Array.isArray(section.extraImageSlides[index]))
+            section.extraImageSlides[index] = [];
+          if (section.extraImageAutoplay[index] === undefined)
+            section.extraImageAutoplay[index] = true;
+          if (!Number.isFinite(Number(section.extraImageIntervals[index])))
+            section.extraImageIntervals[index] = 3;
+        });
         normalizeElementGroups(section);
         migrateExtraImageWidths(section);
         migratePrimaryImageStyle(section);
@@ -1765,7 +1792,14 @@
   function renderExtraImages(s, exportMode) {
     let html = "";
     (s.extraImages || []).forEach(function (src, index) {
-      if (src) {
+      let slides =
+          s.extraImageTypes &&
+          s.extraImageTypes[index] === "rolling" &&
+          Array.isArray(s.extraImageSlides && s.extraImageSlides[index])
+            ? s.extraImageSlides[index].filter(Boolean)
+            : [],
+        isRolling = slides.length > 0;
+      if (src || isRolling) {
         let key = "extraImage" + index,
           style = (s.elementStyles && s.elementStyles[key]) || {},
           fitHeight = Number(
@@ -1779,12 +1813,52 @@
                 responsivePx(Math.max(20, fitHeight)) +
                 ";"
               : "";
-        html +=
-          "<img" +
-          movableAttrs(s, key, "lp-extra-image", exportMode, fitCss) +
-          ' src="' +
-          safeText(src) +
-          '" alt="">';
+        if (isRolling) {
+          html +=
+            "<div" +
+            movableAttrs(
+              s,
+              key,
+              "lp-extra-image lp-rolling-image",
+              exportMode,
+              fitCss,
+            ) +
+            ' data-autoplay="' +
+            (!s.extraImageAutoplay ||
+            s.extraImageAutoplay[index] !== false
+              ? "true"
+              : "false") +
+            '" data-interval="' +
+            Math.max(
+              1,
+              Math.min(
+                60,
+                Number(
+                  s.extraImageIntervals && s.extraImageIntervals[index],
+                ) || 3,
+              ),
+            ) *
+              1000 +
+            '">' +
+            slides
+              .map(function (slide, slideIndex) {
+                return (
+                  '<img class="lp-rolling-slide' +
+                  (slideIndex === 0 ? " active" : "") +
+                  '" src="' +
+                  safeAttr(slide) +
+                  '" alt="" draggable="false">'
+                );
+              })
+              .join("") +
+            "</div>";
+        } else
+          html +=
+            "<img" +
+            movableAttrs(s, key, "lp-extra-image", exportMode, fitCss) +
+            ' src="' +
+            safeText(src) +
+            '" alt="">';
       }
     });
     return html ? '<div class="lp-extra-images">' + html + "</div>" : "";
@@ -1983,6 +2057,42 @@
     frame.style.height = Math.max(1, frameHeight) + "px";
     clampDeviceScreenScroll();
   }
+  function showRollingSlide(carousel, nextIndex) {
+    if (!carousel) return;
+    let slides = carousel.querySelectorAll(".lp-rolling-slide");
+    if (!slides.length) return;
+    let index = ((Number(nextIndex) || 0) % slides.length + slides.length) % slides.length;
+    Array.prototype.forEach.call(slides, function (slide, slideIndex) {
+      slide.classList.toggle("active", slideIndex === index);
+    });
+    carousel.setAttribute("data-slide-index", String(index));
+  }
+  function moveRollingSlide(carousel, direction) {
+    let current = Number(carousel && carousel.getAttribute("data-slide-index")) || 0;
+    showRollingSlide(carousel, current + direction);
+  }
+  function initializeCanvasRollingImages() {
+    rollingImageTimers.forEach(clearInterval);
+    rollingImageTimers = [];
+    $("#deviceScreen .lp-rolling-image").each(function () {
+      let carousel = this;
+      showRollingSlide(carousel, 0);
+      if (
+        carousel.getAttribute("data-autoplay") === "true" &&
+        carousel.querySelectorAll(".lp-rolling-slide").length > 1
+      )
+        rollingImageTimers.push(
+          setInterval(function () {
+            moveRollingSlide(carousel, 1);
+          }, Math.max(1000, Number(carousel.getAttribute("data-interval")) || 3000)),
+        );
+    });
+  }
+  function rollingRuntimeSource() {
+    return (
+      '(function(){function show(root,next){var slides=root.querySelectorAll(".lp-rolling-slide");if(!slides.length)return;var index=((Number(next)||0)%slides.length+slides.length)%slides.length;Array.prototype.forEach.call(slides,function(slide,i){slide.classList.toggle("active",i===index)});root.setAttribute("data-slide-index",String(index))}function move(root,step){show(root,(Number(root.getAttribute("data-slide-index"))||0)+step)}Array.prototype.forEach.call(document.querySelectorAll(".lp-rolling-image"),function(root){var gesture=null;show(root,0);root.addEventListener("dragstart",function(event){event.preventDefault()});root.addEventListener("pointerdown",function(event){if(event.button!==undefined&&event.button!==0)return;gesture={id:event.pointerId,x:event.clientX,y:event.clientY};try{root.setPointerCapture(event.pointerId)}catch(ignore){}});root.addEventListener("pointerup",function(event){if(!gesture||gesture.id!==event.pointerId)return;var dx=event.clientX-gesture.x,dy=event.clientY-gesture.y;gesture=null;if(Math.abs(dx)>=35&&Math.abs(dx)>Math.abs(dy)*1.2){event.preventDefault();move(root,dx<0?1:-1)}});root.addEventListener("pointercancel",function(){gesture=null});if(root.getAttribute("data-autoplay")==="true"&&root.querySelectorAll(".lp-rolling-slide").length>1)setInterval(function(){move(root,1)},Math.max(1000,Number(root.getAttribute("data-interval"))||3000))})})()'
+    );
+  }
   function renderPage() {
     let t = currentTemplate(),
       html = '<div class="lp-page" style="' + pageStyle(t) + '">';
@@ -1992,6 +2102,7 @@
     });
     html += "</div>";
     $("#deviceScreen").html(html);
+    initializeCanvasRollingImages();
     fitDeviceFrameHeight();
     keepRenderedElementsInsideSections();
     renderResizeHandle();
@@ -2277,6 +2388,7 @@
     );
     $("#imageUploadLabel").text(s.image ? "이미지 변경" : "이미지 선택");
     $("#removeImageBtn").prop("disabled", !s.image);
+    $("#deletePrimaryImageBtn").show().prop("disabled", !s.image);
     let primaryImageStyle =
         (s.elementStyles && s.elementStyles.image) || {},
       imageBrightness =
@@ -2322,7 +2434,65 @@
             width =
               style.width === undefined ? "" : Number(style.width) || "",
             height =
-              style.height === undefined ? "" : Number(style.height) || "";
+              style.height === undefined ? "" : Number(style.height) || "",
+            isRolling =
+              s.extraImageTypes &&
+              s.extraImageTypes[index] === "rolling",
+            slides =
+              isRolling &&
+              Array.isArray(s.extraImageSlides && s.extraImageSlides[index])
+                ? s.extraImageSlides[index].filter(Boolean)
+                : [],
+            autoplayInterval = Math.max(
+              1,
+              Math.min(
+                60,
+                Number(
+                  s.extraImageIntervals && s.extraImageIntervals[index],
+                ) || 3,
+              ),
+            ),
+            imagePickerHtml = isRolling
+              ? '<div class="rolling-slide-editor"><label class="upload-button">＋ 슬라이드 이미지 추가<input class="dynamic-rolling-image-upload" data-extra-image-index="' +
+                index +
+                '" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden></label><div class="rolling-slide-list">' +
+                slides
+                  .map(function (slide, slideIndex) {
+                    return (
+                      '<div class="rolling-slide-item"><img src="' +
+                      safeAttr(slide) +
+                      '" alt=""><button type="button" data-remove-rolling-slide="' +
+                      slideIndex +
+                      '" data-extra-image-index="' +
+                      index +
+                      '" aria-label="슬라이드 삭제">×</button></div>'
+                    );
+                  })
+                  .join("") +
+                '</div><label class="rolling-autoplay-check"><input type="checkbox" class="dynamic-rolling-autoplay" data-extra-image-index="' +
+                index +
+                '"' +
+                (!s.extraImageAutoplay ||
+                s.extraImageAutoplay[index] !== false
+                  ? " checked"
+                  : "") +
+                '><span>자동 재생(autoplay)</span></label><label class="rolling-interval-field">전환 시간<input type="number" class="dynamic-rolling-interval" data-extra-image-index="' +
+                index +
+                '" min="1" max="60" step="1" value="' +
+                autoplayInterval +
+                '"' +
+                (s.extraImageAutoplay &&
+                s.extraImageAutoplay[index] === false
+                  ? " disabled"
+                  : "") +
+                '><span>초</span></label></div>'
+              : '<div class="image-control-row"><div class="image-thumb" data-extra-image-thumb="' +
+                index +
+                '"></div><div class="image-actions"><label class="upload-button">' +
+                (src ? "이미지 변경" : "이미지 선택") +
+                '<input class="dynamic-extra-image" data-extra-image-index="' +
+                index +
+                '" type="file" accept="image/png,image/jpeg,image/webp" hidden></label></div></div>';
           return (
             '<div class="element-field-card extra-image-field-card" data-editor-key="extraImage' +
             index +
@@ -2332,13 +2502,8 @@
             index +
             '">복제</button><button type="button" class="element-remove-button" data-remove-extra-image="' +
             index +
-            '">삭제</button></span></div><div class="image-control-row"><div class="image-thumb" data-extra-image-thumb="' +
-            index +
-            '"></div><div class="image-actions"><label class="upload-button">' +
-            (src ? "이미지 변경" : "이미지 선택") +
-            '<input class="dynamic-extra-image" data-extra-image-index="' +
-            index +
-            '" type="file" accept="image/png,image/jpeg,image/webp" hidden></label></div></div>' +
+            '">삭제</button></span></div>' +
+            imagePickerHtml +
             '<div class="image-brightness-control"><label class="field-label">밝기 / 어둡기</label><div class="range-row"><input type="range" class="dynamic-extra-image-brightness" data-extra-image-index="' +
             index +
             '" min="30" max="170" step="5" value="' +
@@ -2413,7 +2578,12 @@
     });
     if (s.image) keys.push("image");
     (s.extraImages || []).forEach(function (src, index) {
-      if (src) keys.push("extraImage" + index);
+      let hasRollingSlides =
+        s.extraImageTypes &&
+        s.extraImageTypes[index] === "rolling" &&
+        Array.isArray(s.extraImageSlides && s.extraImageSlides[index]) &&
+        s.extraImageSlides[index].some(Boolean);
+      if (src || hasRollingSlides) keys.push("extraImage" + index);
     });
     sectionShapes(s).forEach(function (shape) {
       keys.push(shape.key);
@@ -3060,11 +3230,31 @@
           requestAnimationFrame(callback);
         });
       }
-      if (!node || node.complete) {
+      if (!node) {
         afterLayout();
         return;
       }
-      $(node).one("load.stableReplacement error.stableReplacement", afterLayout);
+      let images =
+          String(node.tagName || "").toLowerCase() === "img"
+            ? [node]
+            : Array.prototype.slice.call(node.querySelectorAll("img")),
+        pending = images.filter(function (image) {
+          return !image.complete;
+        });
+      if (!pending.length) {
+        afterLayout();
+        return;
+      }
+      let remaining = pending.length;
+      pending.forEach(function (image) {
+        $(image).one(
+          "load.stableReplacement error.stableReplacement",
+          function () {
+            remaining -= 1;
+            if (remaining <= 0) afterLayout();
+          },
+        );
+      });
     });
   }
   function restoreAnchorsAfterImageReplacement(sectionId, key, anchors) {
@@ -3074,6 +3264,20 @@
       renderStyle();
       markChanged();
     });
+  }
+  function readImageFiles(files) {
+    return Promise.all(
+      Array.prototype.map.call(files || [], function (file) {
+        return new Promise(function (resolve, reject) {
+          let reader = new FileReader();
+          reader.onload = function (event) {
+            resolve(event.target.result);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }),
+    );
   }
   function freezeFittedImagesBeforeElementDeletion(anchors) {
     (anchors || []).forEach(function (anchor) {
@@ -3416,6 +3620,10 @@
     removeGroupKeys(s, [key]);
     resetElementData(s, key);
     s.extraImages.splice(index, 1);
+    if (s.extraImageTypes) s.extraImageTypes.splice(index, 1);
+    if (s.extraImageSlides) s.extraImageSlides.splice(index, 1);
+    if (s.extraImageAutoplay) s.extraImageAutoplay.splice(index, 1);
+    if (s.extraImageIntervals) s.extraImageIntervals.splice(index, 1);
     shiftIndexedElementData(s, "extraImage", index, oldLength);
   }
   function deleteShapeElement(s, key) {
@@ -3641,6 +3849,22 @@
       clipboardItem.textType = /^extraText\d+$/.test(key)
         ? (s.extraTextTypes || [])[Number(key.replace("extraText", ""))] || "normal"
         : "normal";
+    } else if (type === "image" && /^extraImage\d+$/.test(key)) {
+      let imageIndex = Number(key.replace("extraImage", ""));
+      clipboardItem.imageType =
+        (s.extraImageTypes || [])[imageIndex] || "normal";
+      clipboardItem.imageSlides = clone(
+        (s.extraImageSlides || [])[imageIndex] || [],
+      );
+      clipboardItem.imageAutoplay =
+        (s.extraImageAutoplay || [])[imageIndex] !== false;
+      clipboardItem.imageInterval = Math.max(
+        1,
+        Math.min(
+          60,
+          Number((s.extraImageIntervals || [])[imageIndex]) || 3,
+        ),
+      );
     }
     return clipboardItem;
   }
@@ -3680,8 +3904,18 @@
       s.extraButtons.push(clone(item.value));
     } else if (item.type === "image") {
       s.extraImages = s.extraImages || [];
+      s.extraImageTypes = s.extraImageTypes || [];
+      s.extraImageSlides = s.extraImageSlides || [];
+      s.extraImageAutoplay = s.extraImageAutoplay || [];
+      s.extraImageIntervals = s.extraImageIntervals || [];
       key = "extraImage" + s.extraImages.length;
       s.extraImages.push(item.value);
+      s.extraImageTypes.push(item.imageType || "normal");
+      s.extraImageSlides.push(clone(item.imageSlides || []));
+      s.extraImageAutoplay.push(item.imageAutoplay !== false);
+      s.extraImageIntervals.push(
+        Math.max(1, Math.min(60, Number(item.imageInterval) || 3)),
+      );
     } else if (item.type === "shape") {
       s.extraShapes = s.extraShapes || [];
       key = "shape" + s.extraShapes.length;
@@ -3727,6 +3961,11 @@
         position.x + deltaX,
         position.y + deltaY,
       );
+      position = getPosition(s, pastedItem.key);
+      $(entry.node).css(
+        "transform",
+        elementTransform(s, pastedItem.key, position.x, position.y),
+      );
     });
     return largestCorrection;
   }
@@ -3734,6 +3973,7 @@
   function pasteElementItems(items, offset, message) {
     let s = currentSection();
     if (!s || !items || !items.length) return false;
+    let stableAnchors = captureSectionMutationAnchors(s);
     pushHistory();
     let pasted = [];
     items.forEach(function (item) {
@@ -3749,24 +3989,27 @@
     state.selectedElementKey = pasted[pasted.length - 1].key;
     renderPage();
     correctPastedElementPositions(s, pasted, offset);
-    renderAll();
-    correctPastedElementPositions(s, pasted, offset);
-    renderPage();
+    restoreSectionMutationAnchors(stableAnchors);
     renderEditor();
     renderStyle();
+    updateUndoRedo();
     markChanged();
     toast(message || "요소를 복제했습니다.");
-    requestAnimationFrame(function () {
+    function settlePastedLayout() {
       let stillSelected = pasted.every(function (pastedItem) {
         return selectionIndex(s.id, pastedItem.key) >= 0;
       });
       if (!stillSelected) return;
-      if (correctPastedElementPositions(s, pasted, offset) > 0.25) {
-        renderPage();
-        renderEditor();
-        renderStyle();
-        markChanged();
-      }
+      correctPastedElementPositions(s, pasted, offset);
+      restoreSectionMutationAnchors(stableAnchors);
+      renderResizeHandle();
+      markChanged();
+    }
+    requestAnimationFrame(function () {
+      requestAnimationFrame(settlePastedLayout);
+    });
+    $("#deviceScreen img").one("load.stablePaste error.stablePaste", function () {
+      requestAnimationFrame(settlePastedLayout);
     });
     return true;
   }
@@ -3880,7 +4123,9 @@
       pageStyle(t) +
       '">' +
       body +
-      '</div><script>(function(){var page=document.querySelector(".lp-page");function syncResponsiveScale(){if(!page)return;var width=Math.max(280,Math.min(1024,page.getBoundingClientRect().width||360));page.style.setProperty("--responsive-scale",String(width/360))}function syncScanDates(){var now=new Date(),date=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");document.querySelectorAll("[data-scan-time]").forEach(function(element){element.textContent=date})}window.addEventListener("resize",syncResponsiveScale);syncResponsiveScale();syncScanDates()})()<\/script></body></html>'
+      '</div><script>(function(){var page=document.querySelector(".lp-page");function syncResponsiveScale(){if(!page)return;var width=Math.max(280,Math.min(1024,page.getBoundingClientRect().width||360));page.style.setProperty("--responsive-scale",String(width/360))}function syncScanDates(){var now=new Date(),date=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");document.querySelectorAll("[data-scan-time]").forEach(function(element){element.textContent=date})}window.addEventListener("resize",syncResponsiveScale);syncResponsiveScale();syncScanDates()})();' +
+      rollingRuntimeSource() +
+      "<\/script></body></html>"
     );
   }
   function fitPreviewFrameHeight() {
@@ -3933,56 +4178,25 @@
     if (start >= 0) css = css.slice(start, end > start ? end : css.length);
     return css;
   }
-  function formatCssForDownload(css) {
-    let source = String(css || ""),
-      output = "",
-      indent = 0,
-      quote = "",
-      escaped = false,
-      lineStart = true;
-    function write(value) {
-      if (lineStart && value !== "\n") {
-        output += "  ".repeat(Math.max(0, indent));
-        lineStart = false;
-      }
-      output += value;
-      if (value === "\n") lineStart = true;
-    }
-    function newline() {
-      output = output.replace(/[ \t]+$/, "");
-      if (!output.endsWith("\n")) output += "\n";
-      lineStart = true;
-    }
-    for (let i = 0; i < source.length; i++) {
-      let char = source[i];
-      if (quote) {
-        write(char);
-        if (escaped) escaped = false;
-        else if (char === "\\") escaped = true;
-        else if (char === quote) quote = "";
-        continue;
-      }
-      if (char === '"' || char === "'") {
-        quote = char;
-        write(char);
-      } else if (char === "{") {
-        write(" {");
-        newline();
-        indent += 1;
-      } else if (char === ";") {
-        write(";");
-        newline();
-      } else if (char === "}") {
-        newline();
-        indent = Math.max(0, indent - 1);
-        write("}");
-        newline();
-        newline();
-      } else if (/\s/.test(char)) {
-        if (!lineStart && !/[ \n]$/.test(output)) write(" ");
-      } else write(char);
-    }
-    return output.trim();
+  function minifyCssForDownload(css) {
+    let strings = [],
+      source = String(css || "").replace(
+        /(["'])(?:\\[\s\S]|(?!\1)[\s\S])*?\1/g,
+        function (value) {
+          let token = "__LP_CSS_STRING_" + strings.length + "__";
+          strings.push(value);
+          return token;
+        },
+      );
+    source = source
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\s+/g, " ")
+      .replace(/\s*([{}:;,])\s*/g, "$1")
+      .replace(/;}/g, "}")
+      .trim();
+    return source.replace(/__LP_CSS_STRING_(\d+)__/g, function (_, index) {
+      return strings[Number(index)] || "";
+    });
   }
   function convertResponsiveValuesForDownload(source) {
     function pixelToViewport(pixelValue) {
@@ -4025,22 +4239,78 @@
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return JSON.parse(new TextDecoder("utf-8").decode(bytes));
   }
+  function compactBuilderMetadataImages(value, imageAssets, imageIndexes) {
+    if (
+      typeof value === "string" &&
+      /^data:image\/[^;,]+;base64,/i.test(value)
+    ) {
+      let index = imageIndexes.get(value);
+      if (index === undefined) {
+        index = imageAssets.length;
+        imageIndexes.set(value, index);
+        imageAssets.push(value);
+      }
+      return "__LP_IMAGE_ASSET_V2_" + index + "__";
+    }
+    if (Array.isArray(value))
+      return value.map(function (item) {
+        return compactBuilderMetadataImages(item, imageAssets, imageIndexes);
+      });
+    if (value && typeof value === "object") {
+      Object.keys(value).forEach(function (key) {
+        value[key] = compactBuilderMetadataImages(
+          value[key],
+          imageAssets,
+          imageIndexes,
+        );
+      });
+    }
+    return value;
+  }
+  function restoreBuilderMetadataImages(value, imageAssets) {
+    if (typeof value === "string") {
+      let match = value.match(/^__LP_IMAGE_ASSET_V2_(\d+)__$/);
+      return match ? imageAssets[Number(match[1])] || "" : value;
+    }
+    if (Array.isArray(value))
+      return value.map(function (item) {
+        return restoreBuilderMetadataImages(item, imageAssets);
+      });
+    if (value && typeof value === "object") {
+      Object.keys(value).forEach(function (key) {
+        value[key] = restoreBuilderMetadataImages(value[key], imageAssets);
+      });
+    }
+    return value;
+  }
   function builderMetadataComment(template, exportVersion) {
-    let metadataTemplate = clone(template);
+    let metadataTemplate = clone(template),
+      imageAssets = [];
     if (exportVersion) {
       metadataTemplate.downloadRevisionDate = exportVersion.dateCode;
       metadataTemplate.downloadRevision = exportVersion.revision;
       metadataTemplate.downloadSignature = exportVersion.signature;
     }
+    compactBuilderMetadataImages(
+      metadataTemplate,
+      imageAssets,
+      new Map(),
+    );
     let encoded = encodeBuilderMetadata({
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         deviceWidth: state.deviceWidth,
         template: metadataTemplate,
       }),
-      lines = encoded.match(/.{1,120}/g) || [];
+      lines = encoded.match(/.{1,160}/g) || [],
+      assetBlock = imageAssets.length
+        ? "\nLANDING_BUILDER_IMAGE_ASSETS_V2:\n" + imageAssets.join("\n")
+        : "";
     return (
-      "<%-- LANDING_BUILDER_DATA_V1:\n" + lines.join("\n") + "\n--%>"
+      "<%-- LANDING_BUILDER_DATA_V2:\n" +
+      lines.join("\n") +
+      assetBlock +
+      "\n--%>"
     );
   }
   function formatHtmlForDownload(html) {
@@ -4101,7 +4371,7 @@
     body = formatHtmlForDownload(
       convertResponsiveValuesForDownload(body),
     ).replace(/^/gm, "  ");
-    let css = formatCssForDownload(
+    let css = minifyCssForDownload(
       convertResponsiveValuesForDownload(
         "*{box-sizing:border-box;list-style:none;margin:0;padding:0;border:none;}" +
           "html,body{width:100%;min-height:100%;background:#fff;}" +
@@ -4146,6 +4416,7 @@
         '">',
       body,
       '</div>',
+      '<script>' + rollingRuntimeSource() + '<\/script>',
       '</body>',
       '</html>',
     ].join("\n");
@@ -4294,6 +4565,9 @@
       add(section.buttonImage);
       add(section.buttonBackgroundImage);
       (section.extraImages || []).forEach(add);
+      (section.extraImageSlides || []).forEach(function (slides) {
+        (Array.isArray(slides) ? slides : []).forEach(add);
+      });
       (section.extraButtons || []).forEach(function (button) {
         add(button.image);
         add(button.backgroundImage);
@@ -4320,6 +4594,30 @@
       ? match[1].toLowerCase().replace("jpeg", "jpg")
       : "png";
   }
+  function downloadFilenamePart(value, maxLength) {
+    return String(value || "")
+      .normalize("NFC")
+      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/^[.\-\s]+|[.\-\s]+$/g, "")
+      .slice(0, maxLength || 40);
+  }
+  function downloadRoundFilePart(template) {
+    let round = downloadFilenamePart(template && template.roundLabel, 40);
+    return /^\d+$/.test(round) ? round + "차" : round;
+  }
+  function bundledImageFilename(template, isFake, index, extension) {
+    let roundFilePart = downloadRoundFilePart(template),
+      prefix = isFake ? "img-landing-expire" : "img-landing";
+    return (
+      prefix +
+      (roundFilePart ? "-" + roundFilePart : "") +
+      "-" +
+      String(Number(index) + 1).padStart(2, "0") +
+      "." +
+      extension
+    );
+  }
   function replaceImageSource(markup, source, replacement) {
     let variants = [source, safeText(source), safeAttr(source)];
     variants.forEach(function (variant) {
@@ -4329,9 +4627,18 @@
   }
   async function bundleLandingImages(jsp, template, isFake) {
     let markup = String(jsp || ""),
+      metadataComment = "",
+      metadataToken = "__LP_PROTECTED_BUILDER_METADATA__",
       files = [],
       failures = 0,
       sources = templateImageSources(template);
+    markup = markup.replace(
+      /<%--\s*LANDING_BUILDER_DATA_V[12]:[\s\S]*?--%>/,
+      function (value) {
+        metadataComment = value;
+        return metadataToken;
+      },
+    );
     for (let i = 0; i < sources.length; i++) {
       let source = sources[i];
       try {
@@ -4344,11 +4651,12 @@
         if (!/^image\//i.test(blob.type || "image/unknown"))
           throw new Error("not an image");
         let extension = bundledImageExtension(blob, source),
-          filename =
-            (isFake ? "img-landing-expire-" : "img-landing-") +
-            String(files.length + 1).padStart(2, "0") +
-            "." +
+          filename = bundledImageFilename(
+            template,
+            isFake,
+            files.length,
             extension,
+          ),
           zipPath = "img/" + filename,
           bytes = new Uint8Array(await blob.arrayBuffer());
         files.push({ name: zipPath, content: bytes });
@@ -4357,6 +4665,8 @@
         failures += 1;
       }
     }
+    if (metadataComment)
+      markup = markup.replace(metadataToken, metadataComment);
     return { jsp: markup, files: files, failures: failures };
   }
   function bundledImageMimeType(filename) {
@@ -4513,12 +4823,18 @@
       frame.remove();
     }
   }
-  function workspaceZipFilename() {
-    let name = String(currentTemplate().name || "landing")
+  function workspaceZipFilename(isFake, template) {
+    template = template || currentTemplate();
+    let name = String(template.name || "")
       .replace(/\s*(랜딩페이지|랜딩|landing\s*page|landing)\s*$/i, "")
+      .replace(/(?:\s*(?:정품|가품)(?:\s*\d+\s*차?)?)+\s*$/g, "")
       .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
-      .trim();
-    return name ? name + "landing.zip" : "landing.zip";
+      .trim()
+      .slice(0, 60),
+      round = downloadRoundFilePart(template),
+      authenticationType = isFake ? "가품" : "정품",
+      fileStem = [name, authenticationType + round].filter(Boolean).join(" ");
+    return (fileStem || authenticationType) + ".zip";
   }
   function downloadDateCode() {
     let now = new Date(),
@@ -4570,14 +4886,38 @@
     saveLocal(false);
   }
   function extractBuilderMetadata(jspSource) {
-    let match = String(jspSource || "").match(
-      /<%--\s*LANDING_BUILDER_DATA_V1:\s*([A-Za-z0-9+/=\s]+?)\s*--%>/,
-    );
-    if (!match) throw new Error("builder metadata not found");
-    let payload = decodeBuilderMetadata(match[1]);
+    let source = String(jspSource || ""),
+      v2Match = source.match(
+        /<%--\s*LANDING_BUILDER_DATA_V2:\s*([\s\S]*?)\s*--%>/,
+      ),
+      v1Match,
+      payload;
+    if (v2Match) {
+      let parts = v2Match[1].split(
+          /\s*LANDING_BUILDER_IMAGE_ASSETS_V2:\s*/,
+        ),
+        encoded = String(parts.shift() || "").replace(/\s+/g, ""),
+        imageAssets = parts.length
+          ? parts.join("LANDING_BUILDER_IMAGE_ASSETS_V2:")
+              .split(/\r?\n/)
+              .map(function (value) {
+                return value.trim();
+              })
+              .filter(Boolean)
+          : [];
+      payload = decodeBuilderMetadata(encoded);
+      if (payload && payload.template)
+        restoreBuilderMetadataImages(payload.template, imageAssets);
+    } else {
+      v1Match = source.match(
+        /<%--\s*LANDING_BUILDER_DATA_V1:\s*([A-Za-z0-9+/=\s]+?)\s*--%>/,
+      );
+      if (!v1Match) throw new Error("builder metadata not found");
+      payload = decodeBuilderMetadata(v1Match[1]);
+    }
     if (
       !payload ||
-      payload.version !== 1 ||
+      (payload.version !== 1 && payload.version !== 2) ||
       !payload.template ||
       !Array.isArray(payload.template.sections) ||
       !payload.template.sections.length ||
@@ -4655,7 +4995,7 @@
       previewFilename = isFake
         ? fakeFileStem + ".preview.html"
         : fileStem + ".preview.html",
-      zipFilename = workspaceZipFilename();
+      zipFilename = workspaceZipFilename(isFake, template);
     $("[data-download-type]").prop("disabled", true);
     toast("이미지를 포함한 ZIP 파일을 생성하고 있습니다.");
     try {
@@ -4807,6 +5147,26 @@
         requestAnimationFrame(fitPreviewFrameHeight);
     });
     $("#deviceScreen").on("scroll.sectionBounds", clampDeviceScreenScroll);
+    $("#headerRoundInput")
+      .on("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.blur();
+        }
+      })
+      .on("change", function () {
+        let template = currentTemplate();
+        if (!template) return;
+        let value = String(this.value || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 20);
+        this.value = value;
+        if (value === String(template.roundLabel || "")) return;
+        pushHistory();
+        template.roundLabel = value;
+        markChanged();
+      });
     $("#editorFields").on("pointerdown", "[data-editor-key]", function (e) {
       if (e.button !== undefined && e.button !== 0) return;
       let key = String($(this).attr("data-editor-key") || "");
@@ -5223,7 +5583,7 @@
       reader.readAsDataURL(file);
       this.value = "";
     });
-    $("#removeImageBtn").on("click", function () {
+    $("#removeImageBtn,#deletePrimaryImageBtn").on("click", function () {
       let s = currentSection();
       if (!s) return;
       deleteSelectedElements([{ sectionId: s.id, section: s, key: "image" }]);
@@ -5258,23 +5618,27 @@
           return;
         let value = Number(this.value);
         if (!Number.isFinite(value)) return;
+        let stableAnchors = captureSectionMutationAnchors(s, ["image"]);
         s.elementStyles = s.elementStyles || {};
         let style =
           s.elementStyles.image || (s.elementStyles.image = {});
         style.width = value;
         style.fitSectionHeight = false;
         renderPage();
+        restoreSectionMutationAnchors(stableAnchors);
         markChanged();
       })
       .on("change", function () {
         let s = currentSection();
         if (!s) return;
+        let stableAnchors = captureSectionMutationAnchors(s, ["image"]);
         s.elementStyles = s.elementStyles || {};
         let style =
           s.elementStyles.image || (s.elementStyles.image = {});
         if (this.value === "") {
           delete style.width;
           renderPage();
+          restoreSectionMutationAnchors(stableAnchors);
           markChanged();
           return;
         }
@@ -5283,6 +5647,7 @@
         style.width = value;
         style.fitSectionHeight = false;
         renderPage();
+        restoreSectionMutationAnchors(stableAnchors);
         markChanged();
       });
     $("#imageHeight")
@@ -5291,17 +5656,20 @@
         if (!s || !s.image || this.value === "") return;
         let value = Number(this.value);
         if (!Number.isFinite(value)) return;
+        let stableAnchors = captureSectionMutationAnchors(s, ["image"]);
         s.elementStyles = s.elementStyles || {};
         let style =
           s.elementStyles.image || (s.elementStyles.image = {});
         style.height = value;
         style.fitSectionHeight = false;
         renderPage();
+        restoreSectionMutationAnchors(stableAnchors);
         markChanged();
       })
       .on("change", function () {
         let s = currentSection();
         if (!s) return;
+        let stableAnchors = captureSectionMutationAnchors(s, ["image"]);
         s.elementStyles = s.elementStyles || {};
         let style =
           s.elementStyles.image || (s.elementStyles.image = {});
@@ -5313,6 +5681,7 @@
         }
         style.fitSectionHeight = false;
         renderPage();
+        restoreSectionMutationAnchors(stableAnchors);
         markChanged();
       });
     $("#imageFitSectionHeight").on("change", function () {
@@ -5357,10 +5726,37 @@
     $("#addImageElementBtn").on("click", function () {
       let s = currentSection();
       if (!s) return;
+      $("#imageTypeModal").prop("hidden", false);
+    });
+    $(document).on("click", "[data-image-type]", function () {
+      let s = currentSection();
+      if (!s) return;
+      let imageType = String($(this).data("image-type") || "normal"),
+        stableAnchors = captureSectionMutationAnchors(s);
       mutateWithHistory(function () {
         s.extraImages = s.extraImages || [];
+        s.extraImageTypes = s.extraImageTypes || [];
+        s.extraImageSlides = s.extraImageSlides || [];
+        s.extraImageAutoplay = s.extraImageAutoplay || [];
+        s.extraImageIntervals = s.extraImageIntervals || [];
+        let index = s.extraImages.length,
+          key = "extraImage" + index;
         s.extraImages.push("");
+        s.extraImageTypes.push(imageType === "rolling" ? "rolling" : "normal");
+        s.extraImageSlides.push([]);
+        s.extraImageAutoplay.push(true);
+        s.extraImageIntervals.push(3);
+        if (imageType === "rolling") {
+          s.elementStyles = s.elementStyles || {};
+          s.elementStyles[key] = {
+            width: 300,
+            height: 200,
+            objectFit: "cover",
+          };
+        }
       });
+      restoreSectionMutationAnchors(stableAnchors);
+      $("#imageTypeModal").prop("hidden", true);
     });
     $("#extraImageFieldsList").on(
       "change",
@@ -5396,6 +5792,112 @@
           input.value = "";
         };
         reader.readAsDataURL(file);
+      },
+    );
+    $("#extraImageFieldsList").on(
+      "change",
+      ".dynamic-rolling-image-upload",
+      function () {
+        let files = Array.prototype.slice.call(this.files || []),
+          index = Number($(this).data("extra-image-index")),
+          s = currentSection(),
+          input = this;
+        if (!files.length || !s || !Number.isInteger(index)) return;
+        if (
+          files.some(function (file) {
+            return file.size > MAX_IMAGE_UPLOAD_BYTES;
+          })
+        ) {
+          toast("이미지는 각각 " + MAX_IMAGE_UPLOAD_MB + "MB 이하로 선택하세요.");
+          input.value = "";
+          return;
+        }
+        let key = "extraImage" + index,
+          stableAnchors = captureSectionMutationAnchors(s, [key]);
+        readImageFiles(files)
+          .then(function (sources) {
+            pushHistory();
+            s.extraImageSlides = s.extraImageSlides || [];
+            s.extraImageTypes = s.extraImageTypes || [];
+            s.extraImageAutoplay = s.extraImageAutoplay || [];
+            s.extraImageIntervals = s.extraImageIntervals || [];
+            s.extraImages = s.extraImages || [];
+            s.extraImageSlides[index] = (
+              s.extraImageSlides[index] || []
+            ).concat(sources);
+            s.extraImageTypes[index] = "rolling";
+            if (s.extraImageAutoplay[index] === undefined)
+              s.extraImageAutoplay[index] = true;
+            if (!Number.isFinite(Number(s.extraImageIntervals[index])))
+              s.extraImageIntervals[index] = 3;
+            s.extraImages[index] = s.extraImageSlides[index][0] || "";
+            renderPage();
+            renderEditor();
+            markChanged();
+            restoreAnchorsAfterImageReplacement(
+              s.id,
+              key,
+              stableAnchors,
+            );
+            input.value = "";
+          })
+          .catch(function () {
+            toast("슬라이드 이미지를 불러오지 못했습니다.");
+          });
+      },
+    );
+    $("#extraImageFieldsList").on(
+      "click",
+      "[data-remove-rolling-slide]",
+      function () {
+        let index = Number($(this).data("extra-image-index")),
+          slideIndex = Number($(this).data("remove-rolling-slide")),
+          s = currentSection();
+        if (
+          !s ||
+          !Array.isArray(s.extraImageSlides && s.extraImageSlides[index]) ||
+          !Number.isInteger(slideIndex)
+        )
+          return;
+        let key = "extraImage" + index,
+          stableAnchors = captureSectionMutationAnchors(s, [key]);
+        mutateWithHistory(function () {
+          s.extraImageSlides[index].splice(slideIndex, 1);
+          s.extraImages[index] = s.extraImageSlides[index][0] || "";
+        });
+        restoreSectionMutationAnchors(stableAnchors);
+      },
+    );
+    $("#extraImageFieldsList").on(
+      "change",
+      ".dynamic-rolling-autoplay",
+      function () {
+        let index = Number($(this).data("extra-image-index")),
+          s = currentSection();
+        if (!s || !Number.isInteger(index)) return;
+        let checked = this.checked;
+        mutateWithHistory(function () {
+          s.extraImageAutoplay = s.extraImageAutoplay || [];
+          s.extraImageAutoplay[index] = checked;
+        });
+      },
+    );
+    $("#extraImageFieldsList").on(
+      "change",
+      ".dynamic-rolling-interval",
+      function () {
+        let index = Number($(this).data("extra-image-index")),
+          s = currentSection();
+        if (!s || !Number.isInteger(index)) return;
+        let seconds = Math.max(
+          1,
+          Math.min(60, Math.round(Number(this.value) || 3)),
+        );
+        this.value = seconds;
+        mutateWithHistory(function () {
+          s.extraImageIntervals = s.extraImageIntervals || [];
+          s.extraImageIntervals[index] = seconds;
+        });
       },
     );
     $("#extraImageFieldsList").on(
@@ -5445,11 +5947,13 @@
         if (!s || this.value === "") return;
         let value = Number(this.value);
         if (!Number.isFinite(value)) return;
+        let stableAnchors = captureSectionMutationAnchors(s, [key]);
         s.elementStyles = s.elementStyles || {};
         let style = s.elementStyles[key] || (s.elementStyles[key] = {});
         style.width = value;
         style.fitSectionHeight = false;
         renderPage();
+        restoreSectionMutationAnchors(stableAnchors);
         markChanged();
       })
       .on("change", ".dynamic-extra-image-width", function () {
@@ -5457,6 +5961,7 @@
           index = Number($(this).data("extra-image-index")),
           key = "extraImage" + index;
         if (!s) return;
+        let stableAnchors = captureSectionMutationAnchors(s, [key]);
         s.elementStyles = s.elementStyles || {};
         let style = s.elementStyles[key] || (s.elementStyles[key] = {});
         if (this.value === "") delete style.width;
@@ -5467,6 +5972,7 @@
         }
         style.fitSectionHeight = false;
         renderPage();
+        restoreSectionMutationAnchors(stableAnchors);
         markChanged();
       })
       .on("input", ".dynamic-extra-image-height", function () {
@@ -5476,11 +5982,13 @@
         if (!s || this.value === "") return;
         let value = Number(this.value);
         if (!Number.isFinite(value)) return;
+        let stableAnchors = captureSectionMutationAnchors(s, [key]);
         s.elementStyles = s.elementStyles || {};
         let style = s.elementStyles[key] || (s.elementStyles[key] = {});
         style.height = value;
         style.fitSectionHeight = false;
         renderPage();
+        restoreSectionMutationAnchors(stableAnchors);
         markChanged();
       })
       .on("change", ".dynamic-extra-image-height", function () {
@@ -5488,6 +5996,7 @@
           index = Number($(this).data("extra-image-index")),
           key = "extraImage" + index;
         if (!s) return;
+        let stableAnchors = captureSectionMutationAnchors(s, [key]);
         s.elementStyles = s.elementStyles || {};
         let style = s.elementStyles[key] || (s.elementStyles[key] = {});
         if (this.value === "") delete style.height;
@@ -5498,6 +6007,7 @@
         }
         style.fitSectionHeight = false;
         renderPage();
+        restoreSectionMutationAnchors(stableAnchors);
         markChanged();
       });
     $("#extraImageFieldsList").on(
@@ -5943,6 +6453,41 @@
     });
     $(window).on("blur resize scroll", hideElementContextMenu);
 
+    let canvasRollingGesture = null;
+    $("#deviceScreen").on("pointerdown", ".lp-rolling-image", function (e) {
+      if (e.pointerType !== "touch") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      canvasRollingGesture = {
+        carousel: this,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+      };
+      try {
+        this.setPointerCapture(e.pointerId);
+      } catch (ignore) {}
+    });
+    $(document).on(
+      "pointerup.canvasRolling pointercancel.canvasRolling",
+      function (e) {
+        if (
+          !canvasRollingGesture ||
+          canvasRollingGesture.pointerId !== e.pointerId
+        )
+          return;
+        let gesture = canvasRollingGesture,
+          dx = e.clientX - gesture.startX,
+          dy = e.clientY - gesture.startY;
+        canvasRollingGesture = null;
+        if (
+          e.type === "pointerup" &&
+          Math.abs(dx) >= 35 &&
+          Math.abs(dx) > Math.abs(dy) * 1.2
+        )
+          moveRollingSlide(gesture.carousel, dx < 0 ? 1 : -1);
+      },
+    );
     let directDrag = null;
     $("#deviceScreen").on("pointerdown", ".canvas-movable", function (e) {
       if (e.button !== undefined && e.button !== 0) return;

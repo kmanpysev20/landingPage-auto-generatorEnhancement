@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>랜딩페이지 생성기</title>
-  <link rel="stylesheet" href="css/style.css?v=20260727-137">
+  <link rel="stylesheet" href="css/style.css?v=20260730-138">
   <script defer src="js/jquery-3.7.1.min.js"></script>
   <script defer src="js/vendor/html2canvas.min.js?v=1.4.1"></script>
-  <script defer src="js/translation.js?v=20260727-137"></script>
-  <script defer src="js/app.js?v=20260727-137"></script>
+  <script defer src="js/translation.js?v=20260730-142"></script>
+  <script defer src="js/app.js?v=20260730-141"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -20,6 +20,10 @@
         <h1>랜딩페이지 생성기</h1>
         <span class="beta">베타</span>
       </div>
+      <label class="header-round-field" title="현재 작업의 차수">
+        <span class="sr-only">차수</span>
+        <input type="text" class="header-round-input" id="headerRoundInput" maxlength="20" placeholder="차수" autocomplete="off" aria-label="현재 작업 차수">
+      </label>
       <div class="header-element-tools" id="headerElementTools" hidden aria-label="선택 요소 정렬 도구">
         <span class="header-element-tools-label" id="headerElementToolsLabel">요소 정렬</span>
         <div class="header-align-actions" id="multiAlignActions" hidden>
@@ -146,7 +150,10 @@
               <div class="element-field-card primary-image-field-card" data-editor-key="image">
               <div class="element-field-head image-primary-field-head">
                 <h4 class="image-field-title">이미지 1</h4>
-                <button type="button" class="element-duplicate-button" id="duplicatePrimaryImageBtn" data-duplicate-editor-key="image">복제</button>
+                <span class="element-field-actions">
+                  <button type="button" class="element-duplicate-button" id="duplicatePrimaryImageBtn" data-duplicate-editor-key="image">복제</button>
+                  <button type="button" class="element-remove-button" id="deletePrimaryImageBtn">삭제</button>
+                </span>
               </div>
               <div class="image-control-row">
                 <div class="image-thumb" id="imageThumb"></div>
@@ -353,6 +360,23 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="imageTypeModal" hidden>
+    <div class="modal-card button-type-modal-card" role="dialog" aria-modal="true" aria-labelledby="imageTypeModalTitle">
+      <div class="modal-head"><h2 id="imageTypeModalTitle">이미지 추가</h2><button type="button" class="modal-close" data-close-modal aria-label="닫기">×</button></div>
+      <p>추가할 이미지 형태를 선택하세요.</p>
+      <div class="button-type-grid">
+        <button type="button" class="button-type-card" data-image-type="normal">
+          <span class="button-type-icon">▧</span>
+          <span class="button-type-name">일반 이미지</span>
+        </button>
+        <button type="button" class="button-type-card" data-image-type="rolling">
+          <span class="button-type-icon">↔</span>
+          <span class="button-type-name">슬라이드 이미지(롤링)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="translationModal" hidden>
     <div class="modal-card translation-modal-card" role="dialog" aria-modal="true" aria-labelledby="translationModalTitle">
       <div class="modal-head"><h2 id="translationModalTitle">랜딩페이지 번역</h2><button type="button" class="modal-close" data-close-modal aria-label="닫기">×</button></div>
@@ -367,12 +391,13 @@
           <select id="translationSourceLanguage">
             <option value="">자동 감지</option>
             <option value="ko">한국어</option><option value="en">영어</option><option value="ja">일본어</option>
-            <option value="zh-CN">중국어(간체)</option><option value="zh-TW">중국어(번체)</option>
+            <option value="zh-CN">중국어(간체)</option><option value="ru">러시아어</option>
           </select>
         </label>
         <label class="translation-field">번역 언어
           <select id="translationTargetLanguage">
             <option value="en">영어</option><option value="ja">일본어</option><option value="zh-CN">중국어(간체)</option>
+            <option value="ru">러시아어</option>
             <option value="vi">베트남어</option><option value="th">태국어</option><option value="id">인도네시아어</option>
           </select>
         </label>

@@ -202,10 +202,11 @@
     function targetCountry(language) {
       return (
         {
-          en: "us",
-          ja: "jp",
-          "zh-CN": "cn",
-          vi: "vn",
+           en: "us",
+           ja: "jp",
+           "zh-CN": "cn",
+           ru: "ru",
+           vi: "vn",
           th: "th",
           id: "id",
         }[language] || language

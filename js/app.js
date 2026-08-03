@@ -1754,7 +1754,7 @@
           ) +
           ' href="' +
           safeAttr(normalizeButtonLink(button.link)) +
-          '" target="_blank" rel="noopener noreferrer">' +
+          '">' +
           backgroundImageTag +
           renderButtonContent(button) +
           "</a></span>"

@@ -2,7 +2,7 @@
   "use strict";
 
   function init() {
-    state.selectedSectionId = state.templates.beauty.sections[0].id;
+    state.selectedSectionId = currentTemplate().sections[0].id;
     translationController = window.LandingTranslation.create({
       getTemplates: function () {
         return state.templates;
@@ -23,7 +23,6 @@
     renderAll();
   }
 
-  let ASSET = "assets/templates/";
   let DEFAULT_FONT = "'Noto Sans KR', 'Noto Sans', sans-serif";
   let DEFAULT_SECTION_BACKGROUND = "#f2f2ef";
   let DEFAULT_TEXT_COLOR = "#4b5563";
@@ -31,7 +30,7 @@
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 240'%3E%3Crect width='320' height='240' fill='%23f2f2ef'/%3E%3Crect x='105' y='65' width='110' height='110' rx='12' fill='%23d8d8d3'/%3E%3Ccircle cx='137' cy='101' r='14' fill='%23f2f2ef'/%3E%3Cpath d='M115 158l35-38 24 25 16-17 25 30z' fill='%23f2f2ef'/%3E%3C/svg%3E";
   let RESPONSIVE_BASE_WIDTH = 360;
   let WORKSPACE_PAGE_SIZE = 3;
-  let DEFAULT_WORKSPACE_SETUP_VERSION = 1;
+  let DEFAULT_WORKSPACE_SETUP_VERSION = 2;
   let MIN_CANVAS_ZOOM = 25;
   let MAX_CANVAS_ZOOM = 300;
   let MIN_ELEMENT_SECTION_OVERLAP = 16;
@@ -47,6 +46,26 @@
   }
   function clone(obj) {
     return JSON.parse(JSON.stringify(obj));
+  }
+  function removeBundledAssetReferences(value) {
+    let changed = false;
+    function visit(item) {
+      if (!item || typeof item !== "object") return;
+      Object.keys(item).forEach(function (key) {
+        let current = item[key];
+        if (
+          typeof current === "string" &&
+          /^assets[\\/]templates[\\/]/i.test(current)
+        ) {
+          item[key] = "";
+          changed = true;
+          return;
+        }
+        if (current && typeof current === "object") visit(current);
+      });
+    }
+    visit(value);
+    return changed;
   }
   function safeText(v) {
     return $("<div>")
@@ -95,7 +114,7 @@
       buttonText: "제품 보러가기",
       buttonImage: "",
       buttonLink: "#products",
-      image: ASSET + "beauty-top.jpg",
+      image: "",
       visible: true,
     },
     section: {
@@ -107,7 +126,7 @@
       buttonText: "자세히 보기",
       buttonImage: "",
       buttonLink: "#",
-      image: ASSET + "beauty-bottom.jpg",
+      image: "",
       visible: true,
     },
     footer: {
@@ -168,10 +187,10 @@
   let templates = {
     beauty: {
       id: "beauty",
-      name: "MOI",
-      short: "MOI",
+      name: "WORK1",
+      short: "WORK1",
       dot: "#ef65ad",
-      thumb: ASSET + "beauty-thumb.jpg",
+      thumb: "",
       sectionStructureVersion: 2,
       workspaceNameEditableVersion: 1,
       style: {
@@ -182,24 +201,15 @@
         overlay: 22,
       },
       sections: [
-        $.extend(true, { id: uid("b") }, sectionPresets.hero, {
-          title: "벨벳 틴트 립스틱",
-          image: ASSET + "beauty-top.jpg",
-        }),
-        $.extend(true, { id: uid("b") }, sectionPresets.section, {
-          title: "신제품 소개",
-          subtitle: "여름 시즌 한정 컬러를 만나보세요.",
-          image: ASSET + "beauty-bottom.jpg",
-        }),
-        $.extend(true, { id: uid("b") }, sectionPresets.footer, {
-          title: "M.O.I COSMETICS · OFFICIAL LANDING PAGE",
-        }),
+        createEmptySection("hero"),
+        createEmptySection("section"),
+        createEmptySection("footer"),
       ],
     },
     pharma: {
       id: "pharma",
-      name: "작업2",
-      short: "작업2",
+      name: "WORK2",
+      short: "WORK2",
       dot: "#ef65ad",
       thumb: "",
       sectionStructureVersion: 2,
@@ -936,6 +946,7 @@
     if (!saved) return;
     try {
       let savedState = JSON.parse(saved),
+        removedBundledAssets = removeBundledAssetReferences(savedState),
         savedTemplates = savedState && savedState.templates,
         savedKeys = savedTemplates ? Object.keys(savedTemplates) : [],
         isLegacyDefaultSet =
@@ -946,15 +957,19 @@
             return !!savedTemplates[key];
           });
       if (isLegacyDefaultSet) {
-        savedTemplates.beauty.name = "MOI";
-        savedTemplates.beauty.short = "MOI";
-        savedTemplates.beauty.workspaceNameEditableVersion = 1;
-        savedTemplates.pharma = clone(templates.pharma);
-        delete savedTemplates.fashion;
+        savedState.templates = clone(templates);
         savedState.activeTemplate = "beauty";
-        savedState.selectedSectionId = savedTemplates.beauty.sections[0].id;
+        savedState.selectedSectionId =
+          savedState.templates.beauty.sections[0].id;
         savedState.selectedElementKey = null;
         savedState.selectedElements = [];
+      }
+      if (
+        isLegacyDefaultSet ||
+        removedBundledAssets ||
+        Number(savedState.workspaceSetupVersion || 0) <
+          DEFAULT_WORKSPACE_SETUP_VERSION
+      ) {
         savedState.workspaceSetupVersion = DEFAULT_WORKSPACE_SETUP_VERSION;
         saved = JSON.stringify(savedState);
         localStorage.setItem("landingBuilderV2", saved);
@@ -3109,9 +3124,13 @@
         "#dfe2e8",
       ),
     );
+    let backgroundColorIsCleared =
+      target.kind === "section"
+        ? String(stored.backgroundColor || "").toLowerCase() === "#ffffff"
+        : !stored.backgroundColor || stored.backgroundColor === "transparent";
     $('[data-clear-style-color="backgroundColor"]').toggleClass(
       "active",
-      !stored.backgroundColor || stored.backgroundColor === "transparent",
+      backgroundColorIsCleared,
     );
     $('[data-clear-style-color="borderColor"]').toggleClass(
       "active",
@@ -6235,6 +6254,7 @@
         value = null;
       if (field === "backgroundColor") {
         let target = selectionStyleTargets();
+        if (target.kind === "section") value = "#ffffff";
         let boxElementsOnly =
           target.kind === "element" &&
           target.items.length &&

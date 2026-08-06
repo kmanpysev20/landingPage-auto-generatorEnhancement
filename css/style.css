@@ -2185,7 +2185,7 @@ img.lp-hero-background {
 .lp-content {
   text-align: center;
   padding: calc(22px * var(--responsive-scale)) calc(18px * var(--responsive-scale));
-  background: var(--brand-sub);
+  background-color: var(--brand-sub);
 }
 .lp-extra-images {
   display: flex;
@@ -2404,7 +2404,7 @@ img.lp-hero-background {
 .lp-footer {
   padding: calc(18px * var(--responsive-scale));
   text-align: center;
-  background: #111;
+  background-color: #111;
   color: #fff;
   font-size: calc(11px * var(--responsive-scale));
 }
